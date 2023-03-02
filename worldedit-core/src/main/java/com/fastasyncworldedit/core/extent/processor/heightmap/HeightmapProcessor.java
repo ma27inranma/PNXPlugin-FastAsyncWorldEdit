@@ -12,8 +12,6 @@ import com.sk89q.worldedit.world.block.BlockTypesCache;
 
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 
 public class HeightmapProcessor implements IBatchProcessor {
 
@@ -55,7 +53,7 @@ public class HeightmapProcessor implements IBatchProcessor {
         int skip = 0;
         int allSkipped = (1 << TYPES.length) - 1; // lowest types.length bits are set
         layer:
-        for (int layer = maxY >> 4; layer >= minY >> 4; layer--) {
+        for (int layer = maxY / 16; layer >= minY / 16; layer--) {
             boolean hasSectionSet = set.hasSection(layer);
             boolean hasSectionGet = get.hasSection(layer);
             if (!(hasSectionSet || hasSectionGet)) {

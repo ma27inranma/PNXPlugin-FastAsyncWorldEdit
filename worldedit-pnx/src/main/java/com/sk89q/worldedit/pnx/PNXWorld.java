@@ -28,7 +28,6 @@ import cn.nukkit.level.Position;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.particle.PunchBlockParticle;
 import cn.nukkit.math.BlockFace;
-import cn.nukkit.potion.Effect;
 import com.fastasyncworldedit.core.queue.IChunkGet;
 import com.fastasyncworldedit.core.queue.implementation.packet.ChunkPacket;
 import com.google.common.collect.ImmutableSet;
@@ -61,15 +60,12 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -78,29 +74,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 public class PNXWorld extends AbstractWorld {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
-
-    private static final boolean HAS_3D_BIOMES;
-
-    private static final Map<Integer, Effect> effects = new HashMap<>();
-
-    static {
-        Field effectsField = null;
-        try {
-            effectsField = Effect.class.getDeclaredField("effects");
-            effectsField.setAccessible(true);
-            var values = (Effect[]) effectsField.get(null);
-            for (Effect effect : values) {
-                int id = effect.getId();
-                effects.put(id, effect);
-            }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } finally {
-            effectsField.setAccessible(false);
-        }
-        HAS_3D_BIOMES = true;
-    }
-
     private WeakReference<Level> worldRef;
     //FAWE start
     private final String worldNameRef;
@@ -349,12 +322,12 @@ public class PNXWorld extends AbstractWorld {
 
     @Override
     public int getMaxY() {
-        return getWorld().getMaxHeight() - 1;
+        return getWorld().getMaxHeight();
     }
 
     @Override
     public int getMinY() {
-        return getWorld().getMinHeight();
+        return getWorld().getMinHeight() + 1;
     }
 
     @SuppressWarnings("deprecation")
@@ -554,7 +527,7 @@ public class PNXWorld extends AbstractWorld {
 
     @Override
     public IChunkGet get(final int x, final int z) {
-        return new PNXChunk(getWorld().getChunk(x, z));
+        return new PNXGetBlocks(getWorld(), x, z);
     }
 
     @Override

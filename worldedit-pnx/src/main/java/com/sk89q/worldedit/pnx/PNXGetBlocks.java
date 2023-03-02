@@ -1,0 +1,702 @@
+package com.sk89q.worldedit.pnx;
+
+import cn.nukkit.blockentity.BlockEntity;
+import cn.nukkit.entity.Entity;
+import cn.nukkit.level.Level;
+import cn.nukkit.level.Location;
+import cn.nukkit.level.biome.Biome;
+import cn.nukkit.level.format.anvil.Chunk;
+import cn.nukkit.level.format.generic.BaseFullChunk;
+import cn.nukkit.level.format.generic.EmptyChunkSection;
+import com.fastasyncworldedit.core.Fawe;
+import com.fastasyncworldedit.core.configuration.Settings;
+import com.fastasyncworldedit.core.extent.processor.heightmap.HeightMapType;
+import com.fastasyncworldedit.core.queue.IChunkGet;
+import com.fastasyncworldedit.core.queue.IChunkSet;
+import com.fastasyncworldedit.core.queue.implementation.QueueHandler;
+import com.fastasyncworldedit.core.queue.implementation.blocks.CharGetBlocks;
+import com.google.common.base.Preconditions;
+import com.sk89q.jnbt.CompoundTag;
+import com.sk89q.jnbt.ListTag;
+import com.sk89q.jnbt.StringTag;
+import com.sk89q.jnbt.Tag;
+import com.sk89q.worldedit.internal.util.LogManagerCompat;
+import com.sk89q.worldedit.math.BlockVector3;
+import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.block.BaseBlock;
+import com.sk89q.worldedit.world.block.BlockState;
+import com.sk89q.worldedit.world.entity.EntityType;
+import org.apache.logging.log4j.Logger;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
+
+public class PNXGetBlocks extends CharGetBlocks {
+
+    private static final Logger LOGGER = LogManagerCompat.getLogger();
+    private final ReadWriteLock sectionLock = new ReentrantReadWriteLock();
+    private final Level serverLevel;
+    private final int chunkX;
+    private final int chunkZ;
+    private final int minHeight;
+    private final int maxHeight;
+    private final int minSectionPosition;
+    private final int maxSectionPosition;
+    private boolean createCopy = false;
+    private PNXGetBlocks_Copy copy = null;
+    private boolean forceLoadSections = true;
+    private boolean lightUpdate = false;
+    private cn.nukkit.level.format.ChunkSection[] pnxChunkSections;
+    private cn.nukkit.level.format.generic.BaseFullChunk pnxChunk;
+
+    public PNXGetBlocks(Level serverLevel, int chunkX, int chunkZ) {
+        super((serverLevel.getMinHeight() + 1) >> 4, serverLevel.getMaxHeight() >> 4);
+        this.serverLevel = serverLevel;
+        this.chunkX = chunkX;
+        this.chunkZ = chunkZ;
+        //-63 - 320
+        this.minHeight = serverLevel.getMinHeight() + 1;
+        this.maxHeight = serverLevel.getMaxHeight();
+        this.minSectionPosition = this.minHeight / 16;
+        this.maxSectionPosition = this.maxHeight / 16;
+        pnxChunk = serverLevel.getChunk(chunkX, chunkZ);
+        if (pnxChunk instanceof Chunk chunk) {
+            this.pnxChunkSections = chunk.getSections();
+        } else {
+            throw new RuntimeException();
+        }
+    }
+
+    @Override
+    public BaseBlock getFullBlock(final int x, final int y, final int z) {
+        return this.getBlock(x, y, z).toBaseBlock();
+    }
+
+    @Override
+    public BlockState getBlock(final int x, final int y, final int z) {
+        return PNXAdapter.adapt(this.pnxChunk.getBlockState(x & 15, y, z & 15));
+    }
+
+    public int getChunkX() {
+        return chunkX;
+    }
+
+    public int getChunkZ() {
+        return chunkZ;
+    }
+
+    public Level getServerLevel() {
+        return serverLevel;
+    }
+
+    @Override
+    public int getMaxSectionPosition() {
+        return this.maxSectionPosition;
+    }
+
+    @Override
+    public int getMinSectionPosition() {
+        return this.minSectionPosition;
+    }
+
+    @Override
+    public boolean isCreateCopy() {
+        return createCopy;
+    }
+
+    @Override
+    public void setCreateCopy(boolean createCopy) {
+        this.createCopy = createCopy;
+    }
+
+    @Override
+    public IChunkGet getCopy() {
+        return copy;
+    }
+
+    @Override
+    public void setLightingToGet(char[][] light, int minSectionPosition, int maxSectionPosition) {
+        if (light != null) {
+            lightUpdate = true;
+            try {
+                fillLightNibble(light, LightLayer.BLOCK, minSectionPosition, maxSectionPosition);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    @Override
+    public void setSkyLightingToGet(char[][] light, int minSectionPosition, int maxSectionPosition) {
+        if (light != null) {
+            lightUpdate = true;
+            try {
+                fillLightNibble(light, LightLayer.SKY, minSectionPosition, maxSectionPosition);
+            } catch (Throwable e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    enum LightLayer {
+        SKY,
+        BLOCK
+    }
+
+    @Override
+    public void setHeightmapToGet(HeightMapType type, int[] data) {
+        Preconditions.checkArgument(data.length == 256);
+        var target = pnxChunk.getHeightMapArray();
+        for (int i = 0; i < data.length; i++) {
+            target[i] = (byte) data[i];
+        }
+    }
+
+    @Override
+    public int getMaxY() {
+        return maxHeight;
+    }
+
+    @Override
+    public int getMinY() {
+        return minHeight;
+    }
+
+    @Override
+    public BiomeType getBiomeType(int x, int y, int z) {
+        return PNXAdapter.adapt(Biome.getBiome(pnxChunk.getBiomeId(x & 15, y, z & 15)));
+    }
+
+    @Override
+    public void removeSectionLighting(int layer, boolean sky) {
+        if (this.pnxChunkSections[layer] != null && !(this.pnxChunkSections[layer] instanceof EmptyChunkSection)) {
+            lightUpdate = true;
+            synchronized (this.pnxChunkSections[layer]) {
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            this.pnxChunkSections[layer].setBlockLight(x, y, z, 0);
+                        }
+                    }
+                }
+            }
+            if (sky) {
+                synchronized (this.pnxChunkSections[layer]) {
+                    for (int x = 0; x < 16; x++) {
+                        for (int y = 0; y < 16; y++) {
+                            for (int z = 0; z < 16; z++) {
+                                this.pnxChunkSections[layer].setBlockSkyLight(x, y, z, 0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public CompoundTag getTile(int x, int y, int z) {
+        return new CompoundTag(NBTConverter.fromNative(this.pnxChunk.getTile(x & 15, y, z & 15).namedTag));
+    }
+
+    @Override
+    public Map<BlockVector3, CompoundTag> getTiles() {
+        var map = new HashMap<BlockVector3, CompoundTag>();
+        this.pnxChunk.getBlockEntities().values()
+                .forEach(entity -> map.put(
+                        BlockVector3.at(entity.getFloorX(), entity.getFloorY(), entity.getFloorZ()),
+                        new CompoundTag(NBTConverter.fromNative(entity.namedTag))
+                ));
+        return map;
+    }
+
+    @Override
+    public int getSkyLight(int x, int y, int z) {
+        return this.pnxChunk.getBlockSkyLight(x & 15, y, z & 15);
+    }
+
+    @Override
+    public int getEmittedLight(int x, int y, int z) {
+        return this.pnxChunk.getBlockLight(x & 15, y, z & 15);
+    }
+
+    @Override
+    public int[] getHeightMap(HeightMapType type) {
+        int[] array = new int[256];
+        for (int i = 0; i < this.pnxChunk.getHeightMapArray().length; i++) {
+            array[i] = this.pnxChunk.getHeightMapArray()[i];
+        }
+        return array;
+    }
+
+    @Override
+    public CompoundTag getEntity(UUID uuid) {
+        return new CompoundTag(this.pnxChunk.getEntities().values().stream()
+                .filter(entity -> entity.getUniqueId().equals(uuid))
+                .map(entity -> NBTConverter.fromNative(entity.namedTag))
+                .toList().get(0));
+    }
+
+    @Override
+    public Set<CompoundTag> getEntities() {
+        return this.pnxChunk.getEntities().values().stream()
+                .map(entity -> new CompoundTag(NBTConverter.fromNative(entity.namedTag)))
+                .collect(Collectors.toSet());
+    }
+
+    private void removeEntity(Entity entity) {
+        entity.kill();
+    }
+
+    public BaseFullChunk ensureLoaded(Level nmsWorld, int chunkX, int chunkZ) {
+        return nmsWorld.getChunkIfLoaded(chunkX, chunkZ);
+    }
+
+    private cn.nukkit.level.format.anvil.ChunkSection setSectionBiomes(
+            final BiomeType[][] biomes,
+            final int sectionIndex,
+            final cn.nukkit.level.format.anvil.ChunkSection target
+    ) {
+        BiomeType[] sectionBiomes;
+        if (biomes == null || (sectionBiomes = biomes[sectionIndex]) == null) {
+            return target;
+        }
+        for (int y = 0, index = 0; y < 4; y++) {
+            for (int z = 0; z < 4; z++) {
+                for (int x = 0; x < 4; x++, index++) {
+                    BiomeType biomeType = sectionBiomes[index];
+                    if (biomeType == null) {
+                        continue;
+                    }
+                    target.setBiomeId(
+                            x,
+                            y,
+                            z,
+                            (byte) PNXAdapter.adapt(biomeType).getId()
+                    );
+                }
+            }
+        }
+        return target;
+    }
+
+    @Override
+    @SuppressWarnings("rawtypes")
+    public synchronized <T extends Future<T>> T call(IChunkSet set, Runnable finalizer) {
+        forceLoadSections = false;
+        //todo copy 1
+        copy = createCopy ? new PNXGetBlocks_Copy(pnxChunk) : null;
+        try {
+            Level nmsWorld = serverLevel;
+            BaseFullChunk nmsChunk = ensureLoaded(nmsWorld, chunkX, chunkZ);
+            boolean fastmode = set.isFastMode() && Settings.settings().QUEUE.NO_TICK_FASTMODE;
+
+            // Remove existing tiles. Create a copy so that we can remove blocks
+            Map<Long, BlockEntity> chunkTiles = new HashMap<>(nmsChunk.getBlockEntities());
+            List<BlockEntity> beacons = null;
+            if (!chunkTiles.isEmpty()) {
+                for (Map.Entry<Long, BlockEntity> entry : chunkTiles.entrySet()) {
+                    final cn.nukkit.math.BlockVector3 pos = entry.getValue().getLocation().asBlockVector3();
+                    final int lx = pos.getX() & 15;
+                    final int ly = pos.getY();
+                    final int lz = pos.getZ() & 15;
+                    final int layer = ly >> 4;
+                    if (!set.hasSection(layer)) {
+                        continue;
+                    }
+
+                    int ordinal = set.getBlock(lx, ly, lz).getOrdinal();
+                    if (ordinal != 0) {
+                        BlockEntity tile = entry.getValue();
+                        nmsChunk.removeBlockEntity(tile);
+                        if (createCopy) {//todo copy 2
+                            copy.storeTile(tile);
+                        }
+                    }
+                }
+            }
+            final BiomeType[][] biomes = set.getBiomes();
+
+            int bitMask = 0;
+            synchronized (nmsChunk) {
+                cn.nukkit.level.format.ChunkSection[] levelChunkSections = pnxChunkSections;
+                for (int layerNo = getMinSectionPosition(); layerNo <= getMaxSectionPosition(); layerNo++) {
+                    int getSectionIndex = layerNo - getMinSectionPosition();
+                    int setSectionIndex = layerNo - set.getMinSectionPosition();
+
+                    if (!set.hasSection(layerNo)) {
+                        // No blocks, but might be biomes present. Handle this lazily.
+                        if (biomes == null) {
+                            continue;
+                        }
+                        if (layerNo < set.getMinSectionPosition() || layerNo > set.getMaxSectionPosition()) {
+                            continue;
+                        }
+
+                        if (biomes[setSectionIndex] != null) {
+                            synchronized (super.sectionLocks[getSectionIndex]) {
+                                var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) levelChunkSections[getSectionIndex];
+                                if (createCopy && existingSection != null) {//todo copy 3
+                                    copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
+                                }
+
+                                if (existingSection == null) {
+                                    var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layerNo);
+                                    setSectionBiomes(biomes, setSectionIndex, newSection);
+                                    updateGet(nmsChunk, levelChunkSections, newSection, new char[4096], getSectionIndex);
+                                } else {
+                                    setSectionBiomes(biomes, setSectionIndex, existingSection);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    bitMask |= 1 << getSectionIndex;
+
+                    char[] tmp = set.load(layerNo);
+                    char[] setArr = new char[4096];
+                    System.arraycopy(tmp, 0, setArr, 0, 4096);
+                }
+
+                //set Height Map
+                Map<HeightMapType, int[]> heightMaps = set.getHeightMaps();
+                for (Map.Entry<HeightMapType, int[]> entry : heightMaps.entrySet()) {
+                    this.setHeightmapToGet(entry.getKey(), entry.getValue());
+                }
+
+                //set Lighting
+                this.setLightingToGet(
+                        set.getLight(),
+                        set.getMinSectionPosition(),
+                        set.getMaxSectionPosition()
+                );
+
+                //set SkyLighting
+                this.setSkyLightingToGet(
+                        set.getSkyLight(),
+                        set.getMinSectionPosition(),
+                        set.getMaxSectionPosition()
+                );
+
+                Runnable[] syncTasks = null;
+                int bx = chunkX << 4;
+                int bz = chunkZ << 4;
+
+                //Remove Entity
+                Set<UUID> entityRemoves = set.getEntityRemoves();
+                if (entityRemoves != null && !entityRemoves.isEmpty()) {
+                    if (syncTasks == null) {
+                        syncTasks = new Runnable[3];
+                    }
+
+                    syncTasks[2] = () -> {
+                        Set<UUID> entitiesRemoved = new HashSet<>();
+                        final var entities = nmsChunk.getEntities().values().iterator();
+                        while (entities.hasNext()) {
+                            var entity = entities.next();
+                            var uuid = entity.getUniqueId();
+                            if (entityRemoves.contains(uuid)) {
+                                if (createCopy) {
+                                    //todo copy4
+                                    copy.storeEntity(entity);
+                                }
+                                removeEntity(entity);
+                                entityRemoves.remove(uuid);
+                                entities.remove();
+                            }
+                        }
+                        if (Settings.settings().EXPERIMENTAL.REMOVE_ENTITY_FROM_WORLD_ON_CHUNK_FAIL) {
+                            for (UUID uuid : entityRemoves) {
+                                Entity entity = Arrays.stream(nmsWorld.getEntities()).filter(entity1 -> entity1
+                                        .getUniqueId()
+                                        .equals(uuid)).toList().get(0);
+                                if (entity != null) {
+                                    removeEntity(entity);
+                                }
+                            }
+                        }
+                        // Only save entities that were actually removed to history
+                        set.getEntityRemoves().clear();
+                        set.getEntityRemoves().addAll(entitiesRemoved);
+                    };
+                }
+
+                //set Entity
+                Set<CompoundTag> entities = set.getEntities();
+                if (entities != null && !entities.isEmpty()) {
+                    if (syncTasks == null) {
+                        syncTasks = new Runnable[2];
+                    }
+
+                    syncTasks[1] = () -> {
+                        for (final CompoundTag nativeTag : entities) {
+                            final Map<String, Tag> entityTagMap = nativeTag.getValue();
+                            final StringTag idTag = (StringTag) entityTagMap.get("Id");
+                            final ListTag posTag = (ListTag) entityTagMap.get("Pos");
+                            final ListTag rotTag = (ListTag) entityTagMap.get("Rotation");
+                            if (idTag == null || posTag == null || rotTag == null) {
+                                LOGGER.error("Unknown entity tag: {}", nativeTag);
+                                continue;
+                            }
+                            final double x = posTag.getDouble(0);
+                            final double y = posTag.getDouble(1);
+                            final double z = posTag.getDouble(2);
+                            final float yaw = rotTag.getFloat(0);
+                            final float pitch = rotTag.getFloat(1);
+                            final String id = idTag.getValue();
+
+                            final EntityType entityType = EntityType.REGISTRY.get(id);
+                            if (entityType != null) {
+                                Entity entity = PNXAdapter.adaptEntityType(entityType);
+                                if (entity != null) {
+                                    entity.setPosition(new Location(x, y, z, yaw, pitch, nmsWorld));
+                                    entity.spawnToAll();
+                                }
+                            }
+                        }
+                    };
+                }
+
+                // set tiles
+                Map<BlockVector3, CompoundTag> tiles = set.getTiles();
+                if (tiles != null && !tiles.isEmpty()) {
+                    if (syncTasks == null) {
+                        syncTasks = new Runnable[1];
+                    }
+
+                    syncTasks[0] = () -> {
+                        for (final Map.Entry<BlockVector3, CompoundTag> entry : tiles.entrySet()) {
+                            final CompoundTag nativeTag = entry.getValue();
+                            final BlockVector3 blockHash = entry.getKey();
+                            final int x = blockHash.getX() + bx;
+                            final int y = blockHash.getY();
+                            final int z = blockHash.getZ() + bz;
+                            final cn.nukkit.math.BlockVector3 pos = new cn.nukkit.math.BlockVector3(x, y, z);
+
+                            synchronized (nmsWorld) {
+                                BlockEntity tileEntity = nmsWorld.getBlockEntity(pos);
+                                if (tileEntity == null || tileEntity.closed) {
+                                    nmsWorld.removeBlockEntity(tileEntity);
+                                    tileEntity = nmsWorld.getBlockEntity(pos);
+                                }
+                                if (tileEntity != null) {
+                                    cn.nukkit.nbt.tag.CompoundTag tag = (cn.nukkit.nbt.tag.CompoundTag) NBTConverter.toNative(
+                                            nativeTag.asBinaryTag());
+                                    String tileId = tag.getString("id");
+                                    Map<String, cn.nukkit.nbt.tag.Tag> map = new HashMap<>();
+                                    map.put("x", new cn.nukkit.nbt.tag.IntTag("x", x));
+                                    map.put("y", new cn.nukkit.nbt.tag.IntTag("y", y));
+                                    map.put("z", new cn.nukkit.nbt.tag.IntTag("z", z));
+                                    BlockEntity ent = BlockEntity.createBlockEntity(
+                                            tileId,
+                                            nmsChunk,
+                                            new cn.nukkit.nbt.tag.CompoundTag(map)
+                                    );
+                                    if (ent != null) {
+                                        nmsChunk.addBlockEntity(ent);
+                                    }
+                                }
+                            }
+                        }
+                    };
+                }
+
+                Runnable callback;
+                if (bitMask == 0 && biomes == null && !lightUpdate) {
+                    callback = null;
+                } else {
+                    callback = () -> {
+                        // Set Modified
+                        nmsChunk.setChanged(true);
+                        if (finalizer != null) {
+                            finalizer.run();
+                        }
+                    };
+                }
+                if (syncTasks != null) {
+                    QueueHandler queueHandler = Fawe.instance().getQueueHandler();
+                    Runnable[] finalSyncTasks = syncTasks;
+
+                    // Chain the sync tasks and the callback
+                    Callable<Future> chain = () -> {
+                        try {
+                            // Run the sync tasks
+                            for (Runnable task : finalSyncTasks) {
+                                if (task != null) {
+                                    task.run();
+                                }
+                            }
+                            if (callback == null) {
+                                if (finalizer != null) {
+                                    finalizer.run();
+                                }
+                                return null;
+                            } else {
+                                return queueHandler.async(callback, null);
+                            }
+                        } catch (Throwable e) {
+                            e.printStackTrace();
+                            throw e;
+                        }
+                    };
+                    //noinspection unchecked - required at compile time
+                    return (T) (Future) queueHandler.sync(chain);
+                } else {
+                    if (callback == null) {
+                        if (finalizer != null) {
+                            finalizer.run();
+                        }
+                    } else {
+                        callback.run();
+                    }
+                }
+            }
+            return null;
+        } catch (Throwable e) {
+            e.printStackTrace();
+            return null;
+        } finally {
+            forceLoadSections = true;
+        }
+    }
+
+    private void updateGet(
+            BaseFullChunk nmsChunk,
+            cn.nukkit.level.format.ChunkSection[] chunkSections,
+            cn.nukkit.level.format.ChunkSection section,
+            char[] arr,
+            int layer
+    ) {
+        try {
+            sectionLock.writeLock().lock();
+            if (this.getChunk() != nmsChunk) {
+                this.pnxChunk = nmsChunk;
+                this.pnxChunkSections = new cn.nukkit.level.format.ChunkSection[chunkSections.length];
+                System.arraycopy(chunkSections, 0, this.pnxChunkSections, 0, chunkSections.length);
+                this.reset();
+            }
+            if (this.pnxChunkSections == null) {
+                this.pnxChunkSections = new cn.nukkit.level.format.ChunkSection[chunkSections.length];
+                System.arraycopy(chunkSections, 0, this.pnxChunkSections, 0, chunkSections.length);
+            }
+            if (this.pnxChunkSections[layer] != section) {
+                // Not sure why it's funky, but it's what I did in commit fda7d00747abe97d7891b80ed8bb88d97e1c70d1 and I don't want to touch it >dords
+                this.pnxChunkSections[layer] = new cn.nukkit.level.format.ChunkSection[]{section}.clone()[0];
+            }
+        } finally {
+            sectionLock.writeLock().unlock();
+        }
+        this.blocks[layer] = arr;
+    }
+
+    public cn.nukkit.level.format.ChunkSection[] getSections(boolean force) {
+        force &= forceLoadSections;
+        sectionLock.readLock().lock();
+        cn.nukkit.level.format.ChunkSection[] tmp = pnxChunkSections;
+        sectionLock.readLock().unlock();
+        if (tmp == null || force) {
+            try {
+                sectionLock.writeLock().lock();
+                tmp = pnxChunkSections;
+                if (tmp == null || force) {
+                    cn.nukkit.level.format.ChunkSection[] chunkSections = ((Chunk) getChunk()).getSections();
+                    tmp = new cn.nukkit.level.format.ChunkSection[chunkSections.length];
+                    System.arraycopy(chunkSections, 0, tmp, 0, chunkSections.length);
+                    pnxChunkSections = tmp;
+                }
+            } finally {
+                sectionLock.writeLock().unlock();
+            }
+        }
+        return tmp;
+    }
+
+    public cn.nukkit.level.format.generic.BaseFullChunk getChunk() {
+        cn.nukkit.level.format.generic.BaseFullChunk levelChunk = this.pnxChunk;
+        if (levelChunk == null) {
+            synchronized (this) {
+                levelChunk = this.pnxChunk;
+                if (levelChunk == null) {
+                    this.pnxChunk = levelChunk = ensureLoaded(this.serverLevel, chunkX, chunkZ);
+                }
+            }
+        }
+        return levelChunk;
+    }
+
+    private void fillLightNibble(char[][] light, LightLayer lightLayer, int minSectionPosition, int maxSectionPosition) {
+        for (int Y = 0; Y <= maxSectionPosition - minSectionPosition; Y++) {
+            if (light[Y] == null || this.pnxChunkSections[Y] == null) {
+                continue;
+            }
+            if (this.pnxChunkSections[Y] instanceof EmptyChunkSection) {
+                continue;
+            }
+            if (lightLayer == LightLayer.BLOCK) {
+                synchronized (this.pnxChunkSections[Y]) {
+                    for (int x = 0; x < 16; x++) {
+                        for (int y = 0; y < 16; y++) {
+                            for (int z = 0; z < 16; z++) {
+                                int i = y << 8 | z << 4 | x;
+                                this.pnxChunkSections[Y].setBlockLight(x, y, z, light[Y][i] & 15);
+                            }
+                        }
+                    }
+                }
+            } else if (lightLayer == LightLayer.SKY) {
+                synchronized (this.pnxChunkSections[Y]) {
+                    for (int x = 0; x < 16; x++) {
+                        for (int y = 0; y < 16; y++) {
+                            for (int z = 0; z < 16; z++) {
+                                int i = y << 8 | z << 4 | x;
+                                this.pnxChunkSections[Y].setBlockSkyLight(x, y, z, light[Y][i] & 15);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Override
+    public boolean hasSection(int layer) {
+        layer -= getMinSectionPosition();
+        return getSections(false)[layer] != null;
+    }
+
+    @Override
+    public synchronized boolean trim(boolean aggressive) {
+        if (aggressive) {
+            sectionLock.writeLock().lock();
+            pnxChunkSections = null;
+            this.pnxChunk = null;
+            sectionLock.writeLock().unlock();
+            return super.trim(true);
+        } else if (pnxChunkSections == null) {
+            // don't bother trimming if there are no sections stored.
+            return true;
+        } else {
+            for (int i = getMinSectionPosition(); i <= getMaxSectionPosition(); i++) {
+                int layer = i - getMinSectionPosition();
+                if (!hasSection(i) || !super.sections[layer].isFull()) {
+                    continue;
+                }
+                cn.nukkit.level.format.ChunkSection existing = getSections(true)[layer];
+                super.trim(false, i);
+            }
+            return true;
+        }
+    }
+
+}

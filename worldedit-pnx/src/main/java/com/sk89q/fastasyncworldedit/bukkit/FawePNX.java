@@ -210,7 +210,7 @@ public class FawePNX implements IFawe, Listener {
 
     @Override
     public FAWEPlatformAdapterImpl getPlatformAdapter() {
-        return null;
+        return PNXPlatformAdapter.INSTANCE;
     }
 
     private void setupPlotSquared() {

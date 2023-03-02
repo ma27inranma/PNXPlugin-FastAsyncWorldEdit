@@ -23,7 +23,7 @@ public final class JEBEMappings119 {
 
     public static final HashBiMap<cn.nukkit.blockstate.BlockState, com.sk89q.worldedit.world.block.BlockState> BLOCKS_MAPPING_CACHE =
             HashBiMap.create();
-    public static final HashBiMap<cn.nukkit.item.Item, com.sk89q.worldedit.world.item.ItemType> ITEMS_MAPPING =
+    public static final HashBiMap<HashItem, com.sk89q.worldedit.world.item.ItemType> ITEMS_MAPPING =
             HashBiMap.create();
     public static final HashBiMap<cn.nukkit.level.biome.Biome, com.sk89q.worldedit.world.biome.BiomeType> BIOMES_MAPPING =
             HashBiMap.create();
@@ -79,7 +79,8 @@ public final class JEBEMappings119 {
                             damage = Double.valueOf(v.get("bedrock_data").toString()).intValue();
                         }
                         ITEMS_MAPPING.put(
-                                Item.fromString(nkItem + ":" + damage), new com.sk89q.worldedit.world.item.ItemType(k)
+                                HashItem.of(Item.fromString(nkItem + ":" + damage)),
+                                new com.sk89q.worldedit.world.item.ItemType(k)
                         );
                     });
                 }
@@ -106,6 +107,43 @@ public final class JEBEMappings119 {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+
+    public static class HashItem {
+
+        private final Item item;
+
+        private HashItem(Item item) {
+            this.item = item;
+        }
+
+        public static HashItem of(Item item) {
+            return new HashItem(item);
+        }
+
+        public Item getItem() {
+            return item;
+        }
+
+        @Override
+        public int hashCode() {
+            return this.item.getNamespaceId().hashCode() + this.item.getDamage();
+        }
+
+        @Override
+        public boolean equals(final Object obj) {
+            if (obj instanceof HashItem hashItem) {
+                return this.equals(hashItem);
+            } else {
+                return false;
+            }
+        }
+
+        public boolean equals(final HashItem obj) {
+            return this.item.getNamespaceId().equals(obj.item.getNamespaceId()) && this.item.getDamage() == obj.item.getDamage();
+        }
+
     }
 
 }

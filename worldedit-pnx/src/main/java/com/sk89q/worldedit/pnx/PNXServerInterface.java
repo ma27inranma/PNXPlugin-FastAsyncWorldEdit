@@ -232,7 +232,7 @@ public class PNXServerInterface extends AbstractPlatform implements MultiUserPla
     public Map<Capability, Preference> getCapabilities() {
         Map<Capability, Preference> capabilities = new EnumMap<>(Capability.class);
         capabilities.put(Capability.CONFIGURATION, Preference.NORMAL);
-        //capabilities.put(Capability.WORLDEDIT_CUI, Preference.NORMAL);
+        capabilities.put(Capability.WORLDEDIT_CUI, Preference.NORMAL);
         capabilities.put(Capability.GAME_HOOKS, Preference.PREFERRED);
         capabilities.put(Capability.PERMISSIONS, Preference.PREFERRED);
         capabilities.put(Capability.USER_COMMANDS, Preference.PREFERRED);
@@ -273,12 +273,12 @@ public class PNXServerInterface extends AbstractPlatform implements MultiUserPla
 
     @Override
     public int versionMinY() {
-        return -64;
+        return -63;
     }
 
     @Override
     public int versionMaxY() {
-        return 319;
+        return 320;
     }
     //FAWE end
 }

@@ -15,4 +15,5 @@ dependencies {
     "shade"(libs.adventureNbt)
     "shade"(libs.parallelgzip)
     "shade"(libs.zstd)
+    "shade"(libs.sparsebitset)
 }

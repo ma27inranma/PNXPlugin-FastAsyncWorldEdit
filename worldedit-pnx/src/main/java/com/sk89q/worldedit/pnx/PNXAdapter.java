@@ -49,7 +49,6 @@ import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.entity.EntityTypes;
 import com.sk89q.worldedit.world.item.ItemType;
-import com.sk89q.worldedit.world.item.ItemTypes;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,9 +75,12 @@ public final class PNXAdapter {
      * @return If they are equal
      */
     public static boolean equals(BlockType blockType, Item type) {
-        //FAWE start - swapped reference to getAdapter
-        return blockType == asItemType(type).getBlockType();
-        //FAWE end
+        final BlockType blockType2 = asItemType(type).getBlockType();
+        if (blockType2 != null) {
+            return blockType == blockType2;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -341,7 +343,7 @@ public final class PNXAdapter {
      * @return The PNX Material
      */
     public static Item adapt(ItemType itemType) {
-        return JEBEMappings119.ITEMS_MAPPING.inverse().get(itemType);
+        return JEBEMappings119.ITEMS_MAPPING.inverse().get(itemType).getItem();
     }
 
     /**
@@ -394,7 +396,7 @@ public final class PNXAdapter {
         }
     }
 
-    public static cn.nukkit.entity.Entity adapt(EntityType entityType) {
+    public static cn.nukkit.entity.Entity adaptEntityType(EntityType entityType) {
         if (!entityType.getId().startsWith("minecraft:")) {
             throw new IllegalArgumentException("PNX only supports vanilla entities");
         }
@@ -424,7 +426,7 @@ public final class PNXAdapter {
     @Nullable
     public static ItemType asItemType(Item material) {
         //FAWE start - logic moved to IPNXAdapter
-        return ItemTypes.get(material.getNamespaceId());
+        return JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
         //FAWE end
     }
 
