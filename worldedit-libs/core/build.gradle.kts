@@ -13,4 +13,6 @@ dependencies {
     "shade"(libs.pistonRuntime)
     "shade"(libs.pistonImpl)
     "shade"(libs.adventureNbt)
+    "shade"(libs.parallelgzip)
+    "shade"(libs.zstd)
 }
