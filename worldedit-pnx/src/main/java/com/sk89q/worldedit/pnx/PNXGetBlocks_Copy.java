@@ -36,7 +36,7 @@ public class PNXGetBlocks_Copy implements IChunkGet {
     private final int maxHeight;
     final Level serverLevel;
     final cn.nukkit.level.format.generic.BaseFullChunk levelChunk;
-    private byte[] biomes = new byte[4096];
+    private byte[][] biomes;
 
     protected PNXGetBlocks_Copy(cn.nukkit.level.format.generic.BaseFullChunk levelChunk) {
         this.levelChunk = levelChunk;
@@ -44,6 +44,7 @@ public class PNXGetBlocks_Copy implements IChunkGet {
         this.minHeight = serverLevel.getMaxHeight();
         this.maxHeight = serverLevel.getMinHeight() + 1;
         this.blocks = new char[getSectionCount()][];
+        this.biomes = new byte[getSectionCount()][4096];
     }
 
     protected void storeTile(BlockEntity blockEntity) {
@@ -163,7 +164,7 @@ public class PNXGetBlocks_Copy implements IChunkGet {
 
     protected void storeBiomes(int layer, byte[] biomeData) {
         Preconditions.checkArgument(biomeData.length == 4096);
-        System.arraycopy(biomeData, 0, this.biomes, 0, 4096);
+        System.arraycopy(biomeData, 0, this.biomes[layer], 0, 4096);
     }
 
     @Override

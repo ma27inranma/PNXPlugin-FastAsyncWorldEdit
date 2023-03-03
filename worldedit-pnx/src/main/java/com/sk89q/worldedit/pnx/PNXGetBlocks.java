@@ -25,13 +25,13 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
+import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.entity.EntityType;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -156,9 +156,8 @@ public class PNXGetBlocks extends CharGetBlocks {
     @Override
     public void setHeightmapToGet(HeightMapType type, int[] data) {
         Preconditions.checkArgument(data.length == 256);
-        var target = pnxChunk.getHeightMapArray();
         for (int i = 0; i < data.length; i++) {
-            target[i] = (byte) data[i];
+            pnxChunk.getHeightMapArray()[i] = (byte) data[i];
         }
     }
 
@@ -262,48 +261,91 @@ public class PNXGetBlocks extends CharGetBlocks {
         return nmsWorld.getChunkIfLoaded(chunkX, chunkZ);
     }
 
-    private cn.nukkit.level.format.anvil.ChunkSection setSectionBiomes(
-            final BiomeType[][] biomes,
-            final int sectionIndex,
-            final cn.nukkit.level.format.anvil.ChunkSection target
-    ) {
-        BiomeType[] sectionBiomes;
-        if (biomes == null || (sectionBiomes = biomes[sectionIndex]) == null) {
-            return target;
-        }
-        for (int y = 0, index = 0; y < 4; y++) {
-            for (int z = 0; z < 4; z++) {
-                for (int x = 0; x < 4; x++, index++) {
-                    BiomeType biomeType = sectionBiomes[index];
-                    if (biomeType == null) {
+    private void setSectionBlocks(final IChunkSet set, final int setSectionIndex) {
+        //set block and state
+        for (int x = 0; x < 16; x++) {
+            for (int y = setSectionIndex * 16; y < setSectionIndex * 16 + 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    BlockState combined = set.getBlock(x, y, z);
+                    if (combined.getBlockType() == BlockTypes.__RESERVED__) {
                         continue;
                     }
-                    target.setBiomeId(
-                            x,
-                            y,
-                            z,
-                            (byte) PNXAdapter.adapt(biomeType).getId()
-                    );
+                    if (combined.getBlockType() == BlockTypes.AIR ||
+                            combined.getBlockType() == BlockTypes.CAVE_AIR ||
+                            combined.getBlockType() == BlockTypes.VOID_AIR) {
+                        pnxChunk.setBlockId(x, y, z, 0);
+                    } else {
+                        pnxChunk.setBlockState(x, y, z, PNXAdapter.adapt(combined));
+                    }
                 }
             }
         }
-        return target;
+    }
+
+    private void setSectionBiomes(final IChunkSet set, final int layer, final int getSectionIndex, final int setSectionIndex) {
+        if (set.getBiomes() == null) {
+            return;
+        }
+        final BiomeType[] biomes = set.getBiomes()[setSectionIndex];
+        synchronized (super.sectionLocks[getSectionIndex]) {
+            var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
+            if (createCopy && existingSection != null) {
+                copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
+            }
+            if (existingSection == null) {
+                var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layer);
+                for (int y = 0, index = 0; y < 4; y++) {
+                    for (int z = 0; z < 4; z++) {
+                        for (int x = 0; x < 4; x++, index++) {
+                            BiomeType biomeType = biomes[index];
+                            if (biomeType == null) {
+                                continue;
+                            }
+                            for (int i = 0; i < 4; i++) {
+                                newSection.setBiomeId(
+                                        x * 4 + i,
+                                        y * 4 + i,
+                                        z * 4 + i,
+                                        (byte) PNXAdapter.adapt(biomeType).getId()
+                                );
+                            }
+                        }
+                    }
+                }
+                updateGet(pnxChunk, pnxChunkSections, newSection, new char[4096], getSectionIndex);
+            } else {
+                for (int y = 0, index = 0; y < 4; y++) {
+                    for (int z = 0; z < 4; z++) {
+                        for (int x = 0; x < 4; x++, index++) {
+                            BiomeType biomeType = biomes[index];
+                            if (biomeType == null) {
+                                continue;
+                            }
+                            for (int i = 0; i < 4; i++) {
+                                existingSection.setBiomeId(
+                                        x * 4 + i,
+                                        y * 4 + i,
+                                        z * 4 + i,
+                                        (byte) PNXAdapter.adapt(biomeType).getId()
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override
     @SuppressWarnings("rawtypes")
     public synchronized <T extends Future<T>> T call(IChunkSet set, Runnable finalizer) {
         forceLoadSections = false;
-        //todo copy 1
         copy = createCopy ? new PNXGetBlocks_Copy(pnxChunk) : null;
         try {
             Level nmsWorld = serverLevel;
             BaseFullChunk nmsChunk = ensureLoaded(nmsWorld, chunkX, chunkZ);
-            boolean fastmode = set.isFastMode() && Settings.settings().QUEUE.NO_TICK_FASTMODE;
-
             // Remove existing tiles. Create a copy so that we can remove blocks
             Map<Long, BlockEntity> chunkTiles = new HashMap<>(nmsChunk.getBlockEntities());
-            List<BlockEntity> beacons = null;
             if (!chunkTiles.isEmpty()) {
                 for (Map.Entry<Long, BlockEntity> entry : chunkTiles.entrySet()) {
                     final cn.nukkit.math.BlockVector3 pos = entry.getValue().getLocation().asBlockVector3();
@@ -319,69 +361,34 @@ public class PNXGetBlocks extends CharGetBlocks {
                     if (ordinal != 0) {
                         BlockEntity tile = entry.getValue();
                         nmsChunk.removeBlockEntity(tile);
-                        if (createCopy) {//todo copy 2
+                        if (createCopy) {
                             copy.storeTile(tile);
                         }
                     }
                 }
             }
-            final BiomeType[][] biomes = set.getBiomes();
 
             int bitMask = 0;
             synchronized (nmsChunk) {
-                cn.nukkit.level.format.ChunkSection[] levelChunkSections = pnxChunkSections;
                 for (int layerNo = getMinSectionPosition(); layerNo <= getMaxSectionPosition(); layerNo++) {
                     int getSectionIndex = layerNo - getMinSectionPosition();
                     int setSectionIndex = layerNo - set.getMinSectionPosition();
-
-                    if (!set.hasSection(layerNo)) {
-                        // No blocks, but might be biomes present. Handle this lazily.
-                        if (biomes == null) {
-                            continue;
-                        }
-                        if (layerNo < set.getMinSectionPosition() || layerNo > set.getMaxSectionPosition()) {
-                            continue;
-                        }
-
-                        if (biomes[setSectionIndex] != null) {
-                            synchronized (super.sectionLocks[getSectionIndex]) {
-                                var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) levelChunkSections[getSectionIndex];
-                                if (createCopy && existingSection != null) {//todo copy 3
-                                    copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
-                                }
-
-                                if (existingSection == null) {
-                                    var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layerNo);
-                                    setSectionBiomes(biomes, setSectionIndex, newSection);
-                                    updateGet(nmsChunk, levelChunkSections, newSection, new char[4096], getSectionIndex);
-                                } else {
-                                    setSectionBiomes(biomes, setSectionIndex, existingSection);
-                                }
-                            }
-                        }
-                        continue;
-                    }
-
-                    bitMask |= 1 << getSectionIndex;
-
-                    char[] tmp = set.load(layerNo);
-                    char[] setArr = new char[4096];
-                    System.arraycopy(tmp, 0, setArr, 0, 4096);
+                    int sectionIndex = sectionCount - getMinSectionPosition();
+                    setSectionBiomes(set, layerNo, getSectionIndex, setSectionIndex);
+                    setSectionBlocks(set, getSectionIndex);
+                    bitMask |= 1 << sectionIndex;
                 }
-
                 //set Height Map
                 Map<HeightMapType, int[]> heightMaps = set.getHeightMaps();
                 for (Map.Entry<HeightMapType, int[]> entry : heightMaps.entrySet()) {
                     this.setHeightmapToGet(entry.getKey(), entry.getValue());
                 }
-
                 //set Lighting
                 this.setLightingToGet(
                         set.getLight(),
                         set.getMinSectionPosition(),
                         set.getMaxSectionPosition()
                 );
-
                 //set SkyLighting
                 this.setSkyLightingToGet(
                         set.getSkyLight(),
@@ -389,17 +396,13 @@ public class PNXGetBlocks extends CharGetBlocks {
                         set.getMaxSectionPosition()
                 );
 
-                Runnable[] syncTasks = null;
+                Runnable[] syncTasks = new Runnable[3];
                 int bx = chunkX << 4;
                 int bz = chunkZ << 4;
 
                 //Remove Entity
                 Set<UUID> entityRemoves = set.getEntityRemoves();
                 if (entityRemoves != null && !entityRemoves.isEmpty()) {
-                    if (syncTasks == null) {
-                        syncTasks = new Runnable[3];
-                    }
-
                     syncTasks[2] = () -> {
                         Set<UUID> entitiesRemoved = new HashSet<>();
                         final var entities = nmsChunk.getEntities().values().iterator();
@@ -412,6 +415,7 @@ public class PNXGetBlocks extends CharGetBlocks {
                                     copy.storeEntity(entity);
                                 }
                                 removeEntity(entity);
+                                entitiesRemoved.add(uuid);
                                 entityRemoves.remove(uuid);
                                 entities.remove();
                             }
@@ -422,6 +426,7 @@ public class PNXGetBlocks extends CharGetBlocks {
                                         .getUniqueId()
                                         .equals(uuid)).toList().get(0);
                                 if (entity != null) {
+                                    entitiesRemoved.add(uuid);
                                     removeEntity(entity);
                                 }
                             }
@@ -435,10 +440,6 @@ public class PNXGetBlocks extends CharGetBlocks {
                 //set Entity
                 Set<CompoundTag> entities = set.getEntities();
                 if (entities != null && !entities.isEmpty()) {
-                    if (syncTasks == null) {
-                        syncTasks = new Runnable[2];
-                    }
-
                     syncTasks[1] = () -> {
                         for (final CompoundTag nativeTag : entities) {
                             final Map<String, Tag> entityTagMap = nativeTag.getValue();
@@ -471,10 +472,6 @@ public class PNXGetBlocks extends CharGetBlocks {
                 // set tiles
                 Map<BlockVector3, CompoundTag> tiles = set.getTiles();
                 if (tiles != null && !tiles.isEmpty()) {
-                    if (syncTasks == null) {
-                        syncTasks = new Runnable[1];
-                    }
-
                     syncTasks[0] = () -> {
                         for (final Map.Entry<BlockVector3, CompoundTag> entry : tiles.entrySet()) {
                             final CompoundTag nativeTag = entry.getValue();
@@ -513,7 +510,7 @@ public class PNXGetBlocks extends CharGetBlocks {
                 }
 
                 Runnable callback;
-                if (bitMask == 0 && biomes == null && !lightUpdate) {
+                if (bitMask == 0 && set.getBiomes() == null && !lightUpdate) {
                     callback = null;
                 } else {
                     callback = () -> {
@@ -524,45 +521,32 @@ public class PNXGetBlocks extends CharGetBlocks {
                         }
                     };
                 }
-                if (syncTasks != null) {
-                    QueueHandler queueHandler = Fawe.instance().getQueueHandler();
-                    Runnable[] finalSyncTasks = syncTasks;
-
-                    // Chain the sync tasks and the callback
-                    Callable<Future> chain = () -> {
-                        try {
-                            // Run the sync tasks
-                            for (Runnable task : finalSyncTasks) {
-                                if (task != null) {
-                                    task.run();
-                                }
+                QueueHandler queueHandler = Fawe.instance().getQueueHandler();
+                // Chain the sync tasks and the callback
+                Callable<Future> chain = () -> {
+                    try {
+                        // Run the sync tasks
+                        for (Runnable task : syncTasks) {
+                            if (task != null) {
+                                task.run();
                             }
-                            if (callback == null) {
-                                if (finalizer != null) {
-                                    finalizer.run();
-                                }
-                                return null;
-                            } else {
-                                return queueHandler.async(callback, null);
+                        }
+                        if (callback == null) {
+                            if (finalizer != null) {
+                                finalizer.run();
                             }
-                        } catch (Throwable e) {
-                            e.printStackTrace();
-                            throw e;
+                            return null;
+                        } else {
+                            return queueHandler.async(callback, null);
                         }
-                    };
-                    //noinspection unchecked - required at compile time
-                    return (T) (Future) queueHandler.sync(chain);
-                } else {
-                    if (callback == null) {
-                        if (finalizer != null) {
-                            finalizer.run();
-                        }
-                    } else {
-                        callback.run();
+                    } catch (Throwable e) {
+                        e.printStackTrace();
+                        throw e;
                     }
-                }
+                };
+                //noinspection unchecked - required at compile time
+                return (T) (Future) queueHandler.sync(chain);
             }
-            return null;
         } catch (Throwable e) {
             e.printStackTrace();
             return null;

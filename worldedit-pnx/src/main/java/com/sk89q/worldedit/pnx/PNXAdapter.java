@@ -446,7 +446,7 @@ public final class PNXAdapter {
                 return jeBlockState;
             }
         }
-        return null;
+        return BlockTypes.AIR.getDefaultState();
     }
 
     /**
@@ -479,7 +479,7 @@ public final class PNXAdapter {
      */
     public static BlockState adapt(Block block) throws WorldEditException {
         checkNotNull(block);
-        return JEBEMappings119.BLOCKS_MAPPING_CACHE.get(block.getCurrentState());
+        return adapt(block.getCurrentState());
     }
 
     /**
