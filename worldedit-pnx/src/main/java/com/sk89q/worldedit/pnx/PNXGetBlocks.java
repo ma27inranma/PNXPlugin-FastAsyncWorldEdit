@@ -261,10 +261,9 @@ public class PNXGetBlocks extends CharGetBlocks {
         return nmsWorld.getChunkIfLoaded(chunkX, chunkZ);
     }
 
-    private void setSectionBlocks(final IChunkSet set, final int setSectionIndex) {
-        //set block and state
+    private void setChunkBlocks(final IChunkSet set) {
         for (int x = 0; x < 16; x++) {
-            for (int y = setSectionIndex * 16; y < setSectionIndex * 16 + 16; y++) {
+            for (int y = set.getMinSectionPosition() * 16; y < set.getMaxSectionPosition() * 16 + 16; y++) {
                 for (int z = 0; z < 16; z++) {
                     BlockState combined = set.getBlock(x, y, z);
                     if (combined.getBlockType() == BlockTypes.__RESERVED__) {
@@ -273,7 +272,7 @@ public class PNXGetBlocks extends CharGetBlocks {
                     if (combined.getBlockType() == BlockTypes.AIR ||
                             combined.getBlockType() == BlockTypes.CAVE_AIR ||
                             combined.getBlockType() == BlockTypes.VOID_AIR) {
-                        pnxChunk.setBlockId(x, y, z, 0);
+                        pnxChunk.setBlockState(x, y, z, cn.nukkit.blockstate.BlockState.AIR);
                     } else {
                         pnxChunk.setBlockState(x, y, z, PNXAdapter.adapt(combined));
                     }
@@ -370,14 +369,16 @@ public class PNXGetBlocks extends CharGetBlocks {
 
             int bitMask = 0;
             synchronized (nmsChunk) {
-                for (int layerNo = getMinSectionPosition(); layerNo <= getMaxSectionPosition(); layerNo++) {
+                //set section biome
+                for (int layerNo = set.getMinSectionPosition(); layerNo <= set.getMaxSectionPosition(); layerNo++) {
                     int getSectionIndex = layerNo - getMinSectionPosition();
                     int setSectionIndex = layerNo - set.getMinSectionPosition();
                     int sectionIndex = sectionCount - getMinSectionPosition();
                     setSectionBiomes(set, layerNo, getSectionIndex, setSectionIndex);
-                    setSectionBlocks(set, getSectionIndex);
                     bitMask |= 1 << sectionIndex;
                 }
+                //set block and state
+                setChunkBlocks(set);
                 //set Height Map
                 Map<HeightMapType, int[]> heightMaps = set.getHeightMaps();
                 for (Map.Entry<HeightMapType, int[]> entry : heightMaps.entrySet()) {

@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Map;
+import java.util.Objects;
 
 @SuppressWarnings("unchecked")
 public final class JEBEMappings119 {
@@ -73,13 +74,13 @@ public final class JEBEMappings119 {
                 try (InputStream stream = resource.openStream()) {
                     Map<String, Map<String, ?>> map2 = builder.create().fromJson(new InputStreamReader(stream), Map.class);
                     map2.forEach((k, v) -> {
-                        var nkItem = v.get("bedrock_identifier").toString();
-                        int damage = 0;
+                        var name = v.get("bedrock_identifier").toString();
+                        Item nkItem = Item.fromString(name);
                         if (v.containsKey("bedrock_data")) {
-                            damage = Double.valueOf(v.get("bedrock_data").toString()).intValue();
+                            nkItem.setDamage(Double.valueOf(v.get("bedrock_data").toString()).intValue());
                         }
                         ITEMS_MAPPING.put(
-                                HashItem.of(Item.fromString(nkItem + ":" + damage)),
+                                HashItem.of(nkItem),
                                 new com.sk89q.worldedit.world.item.ItemType(k)
                         );
                     });
@@ -128,7 +129,7 @@ public final class JEBEMappings119 {
 
         @Override
         public int hashCode() {
-            return this.item.getNamespaceId().hashCode() + this.item.getDamage();
+            return Objects.hash(this.item.getNamespaceId(), this.item.getDamage());
         }
 
         @Override
@@ -142,6 +143,11 @@ public final class JEBEMappings119 {
 
         public boolean equals(final HashItem obj) {
             return this.item.getNamespaceId().equals(obj.item.getNamespaceId()) && this.item.getDamage() == obj.item.getDamage();
+        }
+
+        @Override
+        public String toString() {
+            return this.item.getNamespaceId() + ":" + this.item.getDamage();
         }
 
     }
