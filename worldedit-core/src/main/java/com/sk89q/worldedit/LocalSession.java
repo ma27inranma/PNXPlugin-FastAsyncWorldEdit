@@ -160,7 +160,7 @@ public class LocalSession implements TextureHolder {
     private transient UUID uuid;
     private transient volatile long historySize = 0;
 
-    private transient BlockVector3 cuiTemporaryBlock;
+    private transient BaseBlock cuiTemporaryBlock;
     @SuppressWarnings("unused")
     private final transient EditSession.ReorderMode reorderMode = EditSession.ReorderMode.MULTI_STAGE;
     private transient List<Countable<BlockState>> lastDistribution;
@@ -1131,7 +1131,7 @@ public class LocalSession implements TextureHolder {
      * @param item the item type
      * @return the tool, which may be {@code null}
      * @deprecated This method is deprecated and only for compatibility with WorldEdit. Use {@link #getTool(BaseItem, Player)}
-     * instead.
+     *         instead.
      */
     @Nullable
     @Deprecated
@@ -1405,8 +1405,9 @@ public class LocalSession implements TextureHolder {
 
         if (!useServerCUI || hasCUISupport) {
             if (cuiTemporaryBlock != null) {
-                player.sendFakeBlock(cuiTemporaryBlock, null);
                 cuiTemporaryBlock = null;
+                // Remove the old block
+                player.sendFakeBlock(null, null);
             }
             return; // If it's not enabled, ignore this.
         }
@@ -1416,21 +1417,17 @@ public class LocalSession implements TextureHolder {
             CompoundBinaryTag tags = Objects.requireNonNull(
                     block.getNbt(), "createStructureBlock should return nbt"
             );
-            BlockVector3 tempCuiTemporaryBlock = BlockVector3.at(
-                    tags.getInt("x"),
-                    tags.getInt("y"),
-                    tags.getInt("z")
-            );
-            // If it's null, we don't need to do anything. The old was already removed.
-            if (cuiTemporaryBlock != null && !tempCuiTemporaryBlock.equals(cuiTemporaryBlock)) {
-                // Update the existing block if it's the same location
-                player.sendFakeBlock(cuiTemporaryBlock, null);
+            if (cuiTemporaryBlock != null && !block.equals(cuiTemporaryBlock)) {
+                //send struct block
+                player.sendFakeBlock(null, block);
+            } else if (cuiTemporaryBlock == null) {
+                cuiTemporaryBlock = block;
+                //send struct block
+                player.sendFakeBlock(null, block);
             }
-            cuiTemporaryBlock = tempCuiTemporaryBlock;
-            player.sendFakeBlock(cuiTemporaryBlock, block);
         } else if (cuiTemporaryBlock != null) {
             // Remove the old block
-            player.sendFakeBlock(cuiTemporaryBlock, null);
+            player.sendFakeBlock(null, null);
             cuiTemporaryBlock = null;
         }
     }

@@ -22,13 +22,10 @@ public final class JEBEMappings119 {
     private static final GsonBuilder builder = new GsonBuilder();
     public static final Map<String, cn.nukkit.blockstate.BlockState> BLOCKS_MAPPING1 = new Object2ObjectOpenHashMap<>();
     public static final Map<cn.nukkit.blockstate.BlockState, String> BLOCKS_MAPPING2 = new Object2ObjectOpenHashMap<>();
-
-    public static final HashBiMap<cn.nukkit.blockstate.BlockState, com.sk89q.worldedit.world.block.BlockState> BLOCKS_MAPPING_CACHE =
-            HashBiMap.create();
-    public static final HashBiMap<HashItem, com.sk89q.worldedit.world.item.ItemType> ITEMS_MAPPING =
-            HashBiMap.create();
-    public static final HashBiMap<cn.nukkit.level.biome.Biome, com.sk89q.worldedit.world.biome.BiomeType> BIOMES_MAPPING =
-            HashBiMap.create();
+    public static final HashBiMap<cn.nukkit.blockstate.BlockState, com.sk89q.worldedit.world.block.BlockState> BLOCKS_MAPPING_CACHE = HashBiMap.create();
+    public static final HashBiMap<HashItem, com.sk89q.worldedit.world.item.ItemType> ITEMS_MAPPING = HashBiMap.create();
+    public static final Map<String, Byte> PNX_ITEMS_DEFAULT_DAMAGE = new Object2ObjectOpenHashMap<>();
+    public static final HashBiMap<cn.nukkit.level.biome.Biome, com.sk89q.worldedit.world.biome.BiomeType> BIOMES_MAPPING = HashBiMap.create();
 
     static {
         Map<String, Map<String, Object>> blocks;
@@ -84,6 +81,7 @@ public final class JEBEMappings119 {
                         if (v.containsKey("bedrock_data") && nkItem.hasMeta() && nkItem.getDamage() == 0) {
                             nkItem.setDamage(Double.valueOf(v.get("bedrock_data").toString()).intValue());
                         }
+                        PNX_ITEMS_DEFAULT_DAMAGE.put(name, (byte) nkItem.getDamage());
                         ItemType.REGISTRY.register(k, new com.sk89q.worldedit.world.item.ItemType(k));
                         ITEMS_MAPPING.put(HashItem.of(nkItem), ItemType.REGISTRY.get(k));
                     });

@@ -23,12 +23,10 @@ import com.sk89q.worldedit.IncompleteRegionException;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.entity.Player;
-import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.CuboidRegion;
 import com.sk89q.worldedit.regions.RegionSelector;
 import com.sk89q.worldedit.regions.selector.CuboidRegionSelector;
-import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.util.nbt.CompoundBinaryTag;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockTypes;
@@ -40,16 +38,11 @@ import javax.annotation.Nullable;
  */
 public class ServerCUIHandler {
 
-    private static final int MAX_DISTANCE = 32;
-
     private ServerCUIHandler() {
     }
 
     public static int getMaxServerCuiSize() {
-        int dataVersion = WorldEdit.getInstance().getPlatformManager().queryCapability(Capability.GAME_HOOKS).getDataVersion();
-
-        // 1.16 increased maxSize to 48.
-        return dataVersion >= 2566 ? 48 : 32;
+        return 1000;
     }
 
     /**
@@ -67,25 +60,25 @@ public class ServerCUIHandler {
         LocalSession session = WorldEdit.getInstance().getSessionManager().get(player);
         RegionSelector regionSelector = session.getRegionSelector(player.getWorld());
 
-        int posX;
-        int posY;
-        int posZ;
-        int width;
-        int height;
-        int length;
+        int startX;
+        int startY;
+        int startZ;
+        int endX;
+        int endY;
+        int endZ;
 
         if (regionSelector instanceof CuboidRegionSelector) {
             if (regionSelector.isDefined()) {
                 try {
                     CuboidRegion region = ((CuboidRegionSelector) regionSelector).getRegion();
 
-                    posX = region.getMinimumPoint().getBlockX();
-                    posY = region.getMinimumPoint().getBlockY();
-                    posZ = region.getMinimumPoint().getBlockZ();
+                    startX = region.getMinimumPoint().getBlockX();
+                    startY = region.getMinimumPoint().getBlockY();
+                    startZ = region.getMinimumPoint().getBlockZ();
+                    endX = region.getMaximumPoint().getBlockX();
+                    endY = region.getMaximumPoint().getBlockY();
+                    endZ = region.getMaximumPoint().getBlockZ();
 
-                    width = region.getWidth();
-                    height = region.getHeight();
-                    length = region.getLength();
                 } catch (IncompleteRegionException e) {
                     // This will never happen.
                     e.printStackTrace();
@@ -104,62 +97,34 @@ public class ServerCUIHandler {
                 }
 
                 // Just select the point.
-                posX = point.getBlockX();
-                posY = point.getBlockY();
-                posZ = point.getBlockZ();
-                width = 1;
-                height = 1;
-                length = 1;
+                startX = point.getBlockX();
+                startY = point.getBlockY();
+                startZ = point.getBlockZ();
+                endX = point.getBlockX();
+                endY = point.getBlockY();
+                endZ = point.getBlockZ();
             }
         } else {
             // We only support cuboid regions right now.
             return null;
         }
 
-        int maxSize = getMaxServerCuiSize();
-
-        if (width > maxSize || length > maxSize || height > maxSize) {
-            // Structure blocks have a limit of maxSize^3
-            return null;
-        }
-
-        // Borrowed this math from FAWE
-        final Location location = player.getLocation();
-        double rotX = location.getYaw();
-        double rotY = location.getPitch();
-        double xz = Math.cos(Math.toRadians(rotY));
-        int x = (int) (location.getX() - (-xz * Math.sin(Math.toRadians(rotX))) * 12);
-        int z = (int) (location.getZ() - (xz * Math.cos(Math.toRadians(rotX))) * 12);
-        int y = Math.max(
-                player.getWorld().getMinY(),
-                Math.min(Math.min(player.getWorld().getMaxY(), posY + MAX_DISTANCE), posY + 3)
-        );
-
         //FAWE start - CBT > Map<String, Tag>
         CompoundBinaryTag.Builder structureTag = CompoundBinaryTag.builder();
-
-        posX -= x;
-        posY -= y;
-        posZ -= z;
-
-        if (Math.abs(posX) > MAX_DISTANCE || Math.abs(posY) > MAX_DISTANCE || Math.abs(posZ) > MAX_DISTANCE) {
-            // Structure blocks have a limit
-            return null;
-        }
 
         //FAWE start - see comment of CBT
         structureTag.putString("name", "worldedit:" + player.getName());
         structureTag.putString("author", player.getName());
         structureTag.putString("metadata", "");
-        structureTag.putInt("x", x);
-        structureTag.putInt("y", y);
-        structureTag.putInt("z", z);
-        structureTag.putInt("posX", posX);
-        structureTag.putInt("posY", posY);
-        structureTag.putInt("posZ", posZ);
-        structureTag.putInt("sizeX", width);
-        structureTag.putInt("sizeY", height);
-        structureTag.putInt("sizeZ", length);
+        structureTag.putInt("x", startX);
+        structureTag.putInt("y", startY);
+        structureTag.putInt("z", startZ);
+        structureTag.putInt("posX", endX);
+        structureTag.putInt("posY", endY);
+        structureTag.putInt("posZ", endZ);
+        structureTag.putInt("sizeX", endX);
+        structureTag.putInt("sizeY", endY);
+        structureTag.putInt("sizeZ", endZ);
         structureTag.putString("rotation", "NONE");
         structureTag.putString("mirror", "NONE");
         structureTag.putString("mode", "SAVE");

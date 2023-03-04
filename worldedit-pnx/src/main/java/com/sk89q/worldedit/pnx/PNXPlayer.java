@@ -23,12 +23,10 @@ package com.sk89q.worldedit.pnx;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.block.fake.FakeStructBlock;
-import cn.nukkit.blockstate.BlockStateRegistry;
 import cn.nukkit.event.player.PlayerDropItemEvent;
 import cn.nukkit.inventory.PlayerInventory;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Location;
-import cn.nukkit.network.protocol.UpdateBlockPacket;
 import com.fastasyncworldedit.core.configuration.Settings;
 import com.fastasyncworldedit.core.util.TaskManager;
 import com.google.common.collect.Sets;
@@ -52,7 +50,6 @@ import com.sk89q.worldedit.util.formatting.text.serializer.plain.PlainComponentS
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.gamemode.GameMode;
 import com.sk89q.worldedit.world.gamemode.GameModes;
 
@@ -388,30 +385,28 @@ public class PNXPlayer extends AbstractPlayerActor {
 
     }
 
+    private transient FakeStructBlock cuiBlock;
+
     @Override
     public <B extends BlockStateHolder<B>> void sendFakeBlock(BlockVector3 pos, B block) {
-        Location loc = new Location(pos.getX(), pos.getY(), pos.getZ(), player.getLevel());
-        if (block == null) {
-            UpdateBlockPacket updateBlockPacket = new UpdateBlockPacket();
-            updateBlockPacket.blockRuntimeId = BlockStateRegistry.getRuntimeId(loc.getLevelBlock().getId());
-            updateBlockPacket.flags = UpdateBlockPacket.FLAG_NETWORK;
-            updateBlockPacket.x = loc.getFloorX();
-            updateBlockPacket.y = loc.getFloorY();
-            updateBlockPacket.z = loc.getFloorZ();
-            player.dataPacket(updateBlockPacket);
-        } else {
-            if (block.getBlockType() == BlockTypes.STRUCTURE_BLOCK && block instanceof BaseBlock) {
-                final FakeStructBlock fakeStructBlock = new FakeStructBlock();
-                fakeStructBlock.create(loc.asBlockVector3(), loc.asBlockVector3(), this.player);
-            } else {
-                UpdateBlockPacket updateBlockPacket = new UpdateBlockPacket();
-                updateBlockPacket.blockRuntimeId = BlockStateRegistry.getRuntimeId(PNXAdapter.adapt(block.getBlockType()));
-                updateBlockPacket.flags = UpdateBlockPacket.FLAG_NETWORK;
-                updateBlockPacket.x = loc.getFloorX();
-                updateBlockPacket.y = loc.getFloorY();
-                updateBlockPacket.z = loc.getFloorZ();
-                player.dataPacket(updateBlockPacket);
+        if (block != null) {
+            if (cuiBlock != null) {
+                cuiBlock.remove(this.player);
             }
+            cn.nukkit.math.BlockVector3 start = new cn.nukkit.math.BlockVector3(
+                    block.getNbt().getInt("x"),
+                    block.getNbt().getInt("y"),
+                    block.getNbt().getInt("z")
+            );
+            cn.nukkit.math.BlockVector3 end = new cn.nukkit.math.BlockVector3(
+                    block.getNbt().getInt("posX"),
+                    block.getNbt().getInt("posY"),
+                    block.getNbt().getInt("posZ")
+            );
+            cuiBlock = new FakeStructBlock();
+            cuiBlock.create(start, end, this.player);
+        } else if (cuiBlock != null) {
+            cuiBlock.remove(this.player);
         }
     }
 

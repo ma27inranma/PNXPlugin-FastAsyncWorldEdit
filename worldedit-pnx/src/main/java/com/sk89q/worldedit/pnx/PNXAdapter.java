@@ -426,7 +426,14 @@ public final class PNXAdapter {
     @Nullable
     public static ItemType asItemType(Item material) {
         //FAWE start - logic moved to IPNXAdapter
-        return JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
+        var result = JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
+        if (result == null) {
+            material = material.clone();
+            material.setDamage(JEBEMappings119.PNX_ITEMS_DEFAULT_DAMAGE.get(material.getNamespaceId()).intValue());
+            return JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
+        } else {
+            return result;
+        }
         //FAWE end
     }
 
