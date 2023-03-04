@@ -1024,7 +1024,7 @@ public class NMSRelighter implements Relighter {
         }
         for (int y = maxY; y > minY; y--) {
             for (RelightSkyEntry chunk : chunks) { // Propagate skylight
-                int layer = (y - minY) >> 4;
+                int layer = (y - minY) / 16;
                 byte[] mask = chunk.mask;
                 int bx = chunk.x << 4;
                 int bz = chunk.z << 4;
@@ -1041,12 +1041,12 @@ public class NMSRelighter implements Relighter {
                 chunk.smooth = false;
 
                 if (remove && (y & 15) == 15 && chunkSet.contains(chunk.x, 0, chunk.z)) {
-                    iChunk.removeSectionLighting(y >> 4, true);
+                    iChunk.removeSectionLighting(y / 16, true);
                 }
 
                 for (int j = 0; j < 256; j++) {
                     int x = j & 15;
-                    int z = j >> 4;
+                    int z = j / 16;
                     byte value = mask[j];
                     BlockState state = iChunk.getBlock(x, y, z);
                     BlockMaterial material = state.getMaterial();

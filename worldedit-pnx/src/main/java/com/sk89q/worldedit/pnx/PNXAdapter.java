@@ -446,7 +446,7 @@ public final class PNXAdapter {
                 return jeBlockState;
             }
         }
-        return BlockTypes.AIR.getDefaultState();
+        return BlockState.get("minecraft:air");
     }
 
     /**

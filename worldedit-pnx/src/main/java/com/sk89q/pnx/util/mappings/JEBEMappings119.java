@@ -61,6 +61,10 @@ public final class JEBEMappings119 {
                 JEBEMappings119.BLOCKS_MAPPING1.put(k, cn.nukkit.blockstate.BlockState.of(name + nkState));
                 JEBEMappings119.BLOCKS_MAPPING2.put(cn.nukkit.blockstate.BlockState.of(name + nkState), k);
             });
+            JEBEMappings119.BLOCKS_MAPPING2.put(
+                    cn.nukkit.blockstate.BlockState.of("minecraft:flowing_lava;liquid_depth=0"),
+                    "minecraft:lava[level=0]"
+            );
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -5,6 +5,7 @@ import cn.nukkit.entity.Entity;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.Location;
 import cn.nukkit.level.biome.Biome;
+import cn.nukkit.level.format.ChunkSection3DBiome;
 import cn.nukkit.level.format.anvil.Chunk;
 import cn.nukkit.level.format.anvil.ChunkSection;
 import cn.nukkit.level.format.generic.EmptyChunkSection;
@@ -177,6 +178,7 @@ public class PNXGetBlocks extends CharGetBlocks {
 
     @Override
     public void removeSectionLighting(int layer, boolean sky) {
+        layer -= getMinSectionPosition();
         if (this.pnxChunkSections[layer] != null && !(this.pnxChunkSections[layer] instanceof EmptyChunkSection)) {
             lightUpdate = true;
             synchronized (this.pnxChunkSections[layer]) {
@@ -351,16 +353,20 @@ public class PNXGetBlocks extends CharGetBlocks {
                         final BiomeType[] biome = biomes[setSectionIndex];
                         if (biome != null) {
                             synchronized (super.sectionLocks[getSectionIndex]) {
-                                var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
-                                if (createCopy && existingSection != null) {
-                                    copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
-                                }
+                                var existingSection = pnxChunkSections[getSectionIndex];
                                 if (existingSection == null) {
                                     var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layerNo);
                                     setSectionBiomes(biome, newSection);
                                     updateGet(pnxChunk, pnxChunkSections, newSection, new char[4096], getSectionIndex);
-                                } else {
-                                    setSectionBiomes(biome, existingSection);
+                                } else if (existingSection instanceof cn.nukkit.level.format.anvil.ChunkSection full) {
+                                    setSectionBiomes(biome, full);
+                                }
+                                if (createCopy) {
+                                    assert existingSection != null;
+                                    copy.storeBiomes(
+                                            getSectionIndex,
+                                            ((ChunkSection3DBiome) existingSection).get3DBiomeDataArray()
+                                    );
                                 }
                             }
                         }
@@ -373,12 +379,12 @@ public class PNXGetBlocks extends CharGetBlocks {
                     System.arraycopy(tmp, 0, setArr, 0, 4096);
 
                     synchronized (super.sectionLocks[getSectionIndex]) {
-                        var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
+                        var existingSection = pnxChunkSections[getSectionIndex];
 
                         if (createCopy) {
                             copy.storeSection(getSectionIndex, loadPrivately(layerNo));
                             if (biomes != null && existingSection != null) {
-                                copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
+                                copy.storeBiomes(getSectionIndex, ((ChunkSection3DBiome) existingSection).get3DBiomeDataArray());
                             }
                         }
 
