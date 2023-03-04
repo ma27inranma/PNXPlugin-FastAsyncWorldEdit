@@ -307,7 +307,10 @@ public class PNXWorld extends AbstractWorld {
             return false;
         } else if ((other instanceof PNXWorld)) {
             Level otherWorld = ((PNXWorld) other).worldRef.get();
-            return ref.equals(otherWorld);
+            if (otherWorld == null) {
+                return false;
+            }
+            return ref.getName().equals(otherWorld.getName());
         } else if (other instanceof com.sk89q.worldedit.world.World) {
             return ((com.sk89q.worldedit.world.World) other).getName().equals(ref.getName());
         } else {

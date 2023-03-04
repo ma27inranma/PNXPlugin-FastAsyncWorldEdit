@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit.util;
+package com.sk89q.fastasyncworldedit.pnx.util;
 
 import com.fastasyncworldedit.core.queue.implementation.QueueHandler;
 

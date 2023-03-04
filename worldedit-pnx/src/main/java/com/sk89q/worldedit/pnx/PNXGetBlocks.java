@@ -6,9 +6,10 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Location;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.anvil.Chunk;
-import cn.nukkit.level.format.generic.BaseFullChunk;
+import cn.nukkit.level.format.anvil.ChunkSection;
 import cn.nukkit.level.format.generic.EmptyChunkSection;
 import com.fastasyncworldedit.core.Fawe;
+import com.fastasyncworldedit.core.FaweCache;
 import com.fastasyncworldedit.core.configuration.Settings;
 import com.fastasyncworldedit.core.extent.processor.heightmap.HeightMapType;
 import com.fastasyncworldedit.core.queue.IChunkGet;
@@ -23,9 +24,11 @@ import com.sk89q.jnbt.Tag;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.biome.BiomeTypes;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockTypes;
+import com.sk89q.worldedit.world.block.BlockTypesCache;
 import com.sk89q.worldedit.world.entity.EntityType;
 import org.apache.logging.log4j.Logger;
 
@@ -57,10 +60,10 @@ public class PNXGetBlocks extends CharGetBlocks {
     private boolean forceLoadSections = true;
     private boolean lightUpdate = false;
     private cn.nukkit.level.format.ChunkSection[] pnxChunkSections;
-    private cn.nukkit.level.format.generic.BaseFullChunk pnxChunk;
+    private cn.nukkit.level.format.anvil.Chunk pnxChunk;
 
     public PNXGetBlocks(Level serverLevel, int chunkX, int chunkZ) {
-        super((serverLevel.getMinHeight() + 1) >> 4, serverLevel.getMaxHeight() >> 4);
+        super((serverLevel.getMinHeight() + 1) / 16, serverLevel.getMaxHeight() / 16);
         this.serverLevel = serverLevel;
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
@@ -69,12 +72,8 @@ public class PNXGetBlocks extends CharGetBlocks {
         this.maxHeight = serverLevel.getMaxHeight();
         this.minSectionPosition = this.minHeight / 16;
         this.maxSectionPosition = this.maxHeight / 16;
-        pnxChunk = serverLevel.getChunk(chunkX, chunkZ);
-        if (pnxChunk instanceof Chunk chunk) {
-            this.pnxChunkSections = chunk.getSections();
-        } else {
-            throw new RuntimeException();
-        }
+        this.pnxChunk = (cn.nukkit.level.format.anvil.Chunk) serverLevel.getChunk(chunkX, chunkZ);
+        this.pnxChunkSections = this.pnxChunk.getSections();
     }
 
     @Override
@@ -257,8 +256,8 @@ public class PNXGetBlocks extends CharGetBlocks {
         entity.kill();
     }
 
-    public BaseFullChunk ensureLoaded(Level nmsWorld, int chunkX, int chunkZ) {
-        return nmsWorld.getChunkIfLoaded(chunkX, chunkZ);
+    public cn.nukkit.level.format.anvil.Chunk ensureLoaded(Level nmsWorld, int chunkX, int chunkZ) {
+        return (cn.nukkit.level.format.anvil.Chunk) nmsWorld.getChunkIfLoaded(chunkX, chunkZ);
     }
 
     private void setChunkBlocks(final IChunkSet set) {
@@ -281,54 +280,20 @@ public class PNXGetBlocks extends CharGetBlocks {
         }
     }
 
-    private void setSectionBiomes(final IChunkSet set, final int layer, final int getSectionIndex, final int setSectionIndex) {
-        if (set.getBiomes() == null) {
-            return;
-        }
-        final BiomeType[] biomes = set.getBiomes()[setSectionIndex];
-        synchronized (super.sectionLocks[getSectionIndex]) {
-            var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
-            if (createCopy && existingSection != null) {
-                copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
-            }
-            if (existingSection == null) {
-                var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layer);
-                for (int y = 0, index = 0; y < 4; y++) {
-                    for (int z = 0; z < 4; z++) {
-                        for (int x = 0; x < 4; x++, index++) {
-                            BiomeType biomeType = biomes[index];
-                            if (biomeType == null) {
-                                continue;
-                            }
-                            for (int i = 0; i < 4; i++) {
-                                newSection.setBiomeId(
-                                        x * 4 + i,
-                                        y * 4 + i,
-                                        z * 4 + i,
-                                        (byte) PNXAdapter.adapt(biomeType).getId()
-                                );
-                            }
-                        }
+    private void setSectionBlocks(final IChunkSet set) {
+        for (int x = 0; x < 16; x++) {
+            for (int y = set.getMinSectionPosition() * 16; y < set.getMaxSectionPosition() * 16 + 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    BlockState combined = set.getBlock(x, y, z);
+                    if (combined.getBlockType() == BlockTypes.__RESERVED__) {
+                        continue;
                     }
-                }
-                updateGet(pnxChunk, pnxChunkSections, newSection, new char[4096], getSectionIndex);
-            } else {
-                for (int y = 0, index = 0; y < 4; y++) {
-                    for (int z = 0; z < 4; z++) {
-                        for (int x = 0; x < 4; x++, index++) {
-                            BiomeType biomeType = biomes[index];
-                            if (biomeType == null) {
-                                continue;
-                            }
-                            for (int i = 0; i < 4; i++) {
-                                existingSection.setBiomeId(
-                                        x * 4 + i,
-                                        y * 4 + i,
-                                        z * 4 + i,
-                                        (byte) PNXAdapter.adapt(biomeType).getId()
-                                );
-                            }
-                        }
+                    if (combined.getBlockType() == BlockTypes.AIR ||
+                            combined.getBlockType() == BlockTypes.CAVE_AIR ||
+                            combined.getBlockType() == BlockTypes.VOID_AIR) {
+                        pnxChunk.setBlockState(x, y, z, cn.nukkit.blockstate.BlockState.AIR);
+                    } else {
+                        pnxChunk.setBlockState(x, y, z, PNXAdapter.adapt(combined));
                     }
                 }
             }
@@ -339,10 +304,10 @@ public class PNXGetBlocks extends CharGetBlocks {
     @SuppressWarnings("rawtypes")
     public synchronized <T extends Future<T>> T call(IChunkSet set, Runnable finalizer) {
         forceLoadSections = false;
-        copy = createCopy ? new PNXGetBlocks_Copy(pnxChunk) : null;
+        copy = createCopy ? new PNXGetBlocks_Copy(serverLevel, pnxChunk) : null;
         try {
             Level nmsWorld = serverLevel;
-            BaseFullChunk nmsChunk = ensureLoaded(nmsWorld, chunkX, chunkZ);
+            cn.nukkit.level.format.anvil.Chunk nmsChunk = ensureLoaded(nmsWorld, chunkX, chunkZ);
             // Remove existing tiles. Create a copy so that we can remove blocks
             Map<Long, BlockEntity> chunkTiles = new HashMap<>(nmsChunk.getBlockEntities());
             if (!chunkTiles.isEmpty()) {
@@ -366,16 +331,105 @@ public class PNXGetBlocks extends CharGetBlocks {
                     }
                 }
             }
-
+            final BiomeType[][] biomes = set.getBiomes();
             int bitMask = 0;
             synchronized (nmsChunk) {
                 //set section biome
-                for (int layerNo = set.getMinSectionPosition(); layerNo <= set.getMaxSectionPosition(); layerNo++) {
+                for (int layerNo = getMinSectionPosition(); layerNo <= getMaxSectionPosition(); layerNo++) {
                     int getSectionIndex = layerNo - getMinSectionPosition();
                     int setSectionIndex = layerNo - set.getMinSectionPosition();
                     int sectionIndex = sectionCount - getMinSectionPosition();
-                    setSectionBiomes(set, layerNo, getSectionIndex, setSectionIndex);
+                    //store section
+                    copy.storeSection(getSectionIndex, loadPrivately(layerNo));
+                    if (!set.hasSection(layerNo)) {
+                        if (biomes == null) {
+                            continue;
+                        }
+                        if (layerNo < set.getMinSectionPosition() || layerNo > set.getMaxSectionPosition()) {
+                            continue;
+                        }
+                        final BiomeType[] biome = biomes[setSectionIndex];
+                        if (biome != null) {
+                            synchronized (super.sectionLocks[getSectionIndex]) {
+                                var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
+                                if (createCopy && existingSection != null) {
+                                    copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
+                                }
+                                if (existingSection == null) {
+                                    var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layerNo);
+                                    setSectionBiomes(biome, newSection);
+                                    updateGet(pnxChunk, pnxChunkSections, newSection, new char[4096], getSectionIndex);
+                                } else {
+                                    setSectionBiomes(biome, existingSection);
+                                }
+                            }
+                        }
+                        continue;
+                    }
                     bitMask |= 1 << sectionIndex;
+
+                    char[] tmp = set.load(layerNo);
+                    char[] setArr = new char[4096];
+                    System.arraycopy(tmp, 0, setArr, 0, 4096);
+
+                    synchronized (super.sectionLocks[getSectionIndex]) {
+                        var existingSection = (cn.nukkit.level.format.anvil.ChunkSection) pnxChunkSections[getSectionIndex];
+
+                        if (createCopy) {
+                            copy.storeSection(getSectionIndex, loadPrivately(layerNo));
+                            if (biomes != null && existingSection != null) {
+                                copy.storeBiomes(getSectionIndex, existingSection.get3DBiomeDataArray());
+                            }
+                        }
+
+                        if (existingSection == null) {
+                            BiomeType[] biomeData;
+                            if (biomes == null) {
+                                biomeData = new BiomeType[64];
+                                Arrays.fill(biomeData, BiomeTypes.PLAINS);
+                            } else {
+                                biomeData = biomes[setSectionIndex];
+                            }
+                            var newSection = new cn.nukkit.level.format.anvil.ChunkSection(layerNo);
+                            if (biomeData != null) {
+                                setSectionBiomes(biomeData, newSection);
+                                for (int y = 0, index = 0; y < 16; y++) {
+                                    for (int z = 0; z < 16; z++) {
+                                        for (int x = 0; x < 16; x++, index++) {
+                                            BlockState combined = BlockState.getFromOrdinal(setArr[index]);
+                                            if (combined.getBlockType() == BlockTypes.__RESERVED__) {
+                                                continue;
+                                            }
+                                            if (combined.getBlockType() == BlockTypes.AIR ||
+                                                    combined.getBlockType() == BlockTypes.CAVE_AIR ||
+                                                    combined.getBlockType() == BlockTypes.VOID_AIR) {
+                                                pnxChunk.setBlockState(x, y, z, cn.nukkit.blockstate.BlockState.AIR);
+                                            } else {
+                                                pnxChunk.setBlockState(x, y, z, PNXAdapter.adapt(combined));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            updateGet(pnxChunk, pnxChunkSections, newSection, setArr, getSectionIndex);
+                        }
+                        //同步
+                        try {
+                            sectionLock.writeLock().lock();
+                            if (this.getChunk() != nmsChunk) {
+                                this.pnxChunk = nmsChunk;
+                                this.pnxChunkSections = null;
+                                this.reset();
+                            } else if (existingSection != getSections(false)[getSectionIndex]) {
+                                this.pnxChunkSections[getSectionIndex] = existingSection;
+                                this.reset();
+                            } else if (!Arrays.equals(update(getSectionIndex, new char[4096], true), loadPrivately(layerNo))) {
+                                this.reset(layerNo);
+                            }
+                        } finally {
+                            sectionLock.writeLock().unlock();
+                        }
+                    }
                 }
                 //set block and state
                 setChunkBlocks(set);
@@ -412,7 +466,6 @@ public class PNXGetBlocks extends CharGetBlocks {
                             var uuid = entity.getUniqueId();
                             if (entityRemoves.contains(uuid)) {
                                 if (createCopy) {
-                                    //todo copy4
                                     copy.storeEntity(entity);
                                 }
                                 removeEntity(entity);
@@ -556,8 +609,81 @@ public class PNXGetBlocks extends CharGetBlocks {
         }
     }
 
+    private void setSectionBiomes(final BiomeType[] biomes, final ChunkSection newSection) {
+        for (int y = 0, index = 0; y < 4; y++) {
+            for (int z = 0; z < 4; z++) {
+                for (int x = 0; x < 4; x++, index++) {
+                    BiomeType biomeType = biomes[index];
+                    if (biomeType == null) {
+                        continue;
+                    }
+                    for (int i = 0; i < 4; i++) {
+                        newSection.setBiomeId(
+                                x * 4 + i,
+                                y * 4 + i,
+                                z * 4 + i,
+                                (byte) PNXAdapter.adapt(biomeType).getId()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private char[] loadPrivately(int layer) {
+        layer -= getMinSectionPosition();
+        if (super.sections[layer] != null) {
+            synchronized (super.sectionLocks[layer]) {
+                if (super.sections[layer].isFull() && super.blocks[layer] != null) {
+                    char[] blocks = new char[4096];
+                    System.arraycopy(super.blocks[layer], 0, blocks, 0, 4096);
+                    return blocks;
+                }
+            }
+        }
+        return this.update(layer, null, true);
+    }
+
+    @Override
+    public char[] update(int layer, char[] data, boolean aggressive) {
+        cn.nukkit.level.format.ChunkSection section = getSections(aggressive)[layer];
+        // Section is null, return empty array
+        if (section == null) {
+            data = new char[4096];
+            Arrays.fill(data, (char) BlockTypesCache.ReservedIDs.AIR);
+            return data;
+        }
+        if (data != null && data.length != 4096) {
+            data = new char[4096];
+            Arrays.fill(data, (char) BlockTypesCache.ReservedIDs.AIR);
+        }
+        if (data == null || data == FaweCache.INSTANCE.EMPTY_CHAR_4096) {
+            data = new char[4096];
+            Arrays.fill(data, (char) BlockTypesCache.ReservedIDs.AIR);
+        }
+
+        try {
+            sectionLock.readLock().lock();
+            for (int y = 0, index = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++, index++) {
+                        var state = section.getBlockState(x, y, z);
+                        if (state == cn.nukkit.blockstate.BlockState.AIR) {
+                            data[index] = 0;
+                        } else {
+                            data[index] = PNXAdapter.adapt(section.getBlockState(x, y, z)).getOrdinalChar();
+                        }
+                    }
+                }
+            }
+            return data;
+        } finally {
+            sectionLock.readLock().unlock();
+        }
+    }
+
     private void updateGet(
-            BaseFullChunk nmsChunk,
+            cn.nukkit.level.format.anvil.Chunk nmsChunk,
             cn.nukkit.level.format.ChunkSection[] chunkSections,
             cn.nukkit.level.format.ChunkSection section,
             char[] arr,
@@ -607,8 +733,8 @@ public class PNXGetBlocks extends CharGetBlocks {
         return tmp;
     }
 
-    public cn.nukkit.level.format.generic.BaseFullChunk getChunk() {
-        cn.nukkit.level.format.generic.BaseFullChunk levelChunk = this.pnxChunk;
+    public cn.nukkit.level.format.anvil.Chunk getChunk() {
+        cn.nukkit.level.format.anvil.Chunk levelChunk = this.pnxChunk;
         if (levelChunk == null) {
             synchronized (this) {
                 levelChunk = this.pnxChunk;

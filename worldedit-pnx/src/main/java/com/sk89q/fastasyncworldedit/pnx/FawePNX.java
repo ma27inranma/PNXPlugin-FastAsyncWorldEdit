@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit;
+package com.sk89q.fastasyncworldedit.pnx;
 
 import cn.nukkit.Server;
 import cn.nukkit.event.EventHandler;
@@ -14,9 +14,9 @@ import com.fastasyncworldedit.core.queue.implementation.preloader.Preloader;
 import com.fastasyncworldedit.core.regions.FaweMaskManager;
 import com.fastasyncworldedit.core.util.TaskManager;
 import com.fastasyncworldedit.core.util.image.ImageViewer;
-import com.sk89q.fastasyncworldedit.bukkit.listener.BrushListener;
-import com.sk89q.fastasyncworldedit.bukkit.util.PNXQueueHandler;
-import com.sk89q.fastasyncworldedit.bukkit.util.PNXTaskManager;
+import com.sk89q.fastasyncworldedit.pnx.listener.BrushListener;
+import com.sk89q.fastasyncworldedit.pnx.util.PNXQueueHandler;
+import com.sk89q.fastasyncworldedit.pnx.util.PNXTaskManager;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Capability;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
@@ -35,11 +35,7 @@ import java.util.UUID;
 public class FawePNX implements IFawe, Listener {
 
     private static final Logger LOGGER = LogManagerCompat.getLogger();
-
     private final Plugin plugin;
-    //    private final FAWEPlatformAdapterImpl platformAdapter;
-    private Preloader preloader;
-    private volatile boolean keepUnloaded;
 
     public FawePNX(Plugin plugin) {
         this.plugin = plugin;
@@ -90,8 +86,12 @@ public class FawePNX implements IFawe, Listener {
         msg.append("# FastAsyncWorldEdit Information\n");
         msg.append(Fawe.instance().getVersion()).append("\n\n");
 
-        List<Plugin> plugins = new ArrayList<>();
-        plugins.addAll(PNXWorldEditPlugin.getInstance().getServer().getPluginManager().getPlugins().values());
+        List<Plugin> plugins = new ArrayList<>(PNXWorldEditPlugin
+                .getInstance()
+                .getServer()
+                .getPluginManager()
+                .getPlugins()
+                .values());
         plugins.sort(Comparator.comparing(Plugin::getName));
 
         msg.append("Server Version: ").append(PNXWorldEditPlugin.getInstance().getServer().getVersion()).append("\n");

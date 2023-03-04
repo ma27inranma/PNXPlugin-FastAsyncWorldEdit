@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit.util;
+package com.sk89q.fastasyncworldedit.pnx.util;
 
 import cn.nukkit.plugin.Plugin;
 import cn.nukkit.scheduler.AsyncTask;

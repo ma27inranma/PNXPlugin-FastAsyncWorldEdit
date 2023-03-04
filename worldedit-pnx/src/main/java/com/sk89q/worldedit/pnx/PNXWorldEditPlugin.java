@@ -11,7 +11,7 @@ import cn.nukkit.plugin.PluginBase;
 import com.fastasyncworldedit.core.Fawe;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.sk89q.fastasyncworldedit.bukkit.FawePNX;
+import com.sk89q.fastasyncworldedit.pnx.FawePNX;
 import com.sk89q.pnx.util.mappings.JEBEMappings119;
 import com.sk89q.util.yaml.YAMLProcessor;
 import com.sk89q.wepif.PermissionsResolverManager;
@@ -26,13 +26,11 @@ import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
 import com.sk89q.worldedit.pnx.data.FileRegistries;
-import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockCategory;
 import com.sk89q.worldedit.world.block.BlockTypesCache;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.gamemode.GameModes;
 import com.sk89q.worldedit.world.item.ItemCategory;
-import com.sk89q.worldedit.world.item.ItemType;
 import com.sk89q.worldedit.world.weather.WeatherTypes;
 import org.apache.logging.log4j.Logger;
 
@@ -209,26 +207,13 @@ public class PNXWorldEditPlugin extends PluginBase {
     }
 
     public void setupRegistries() {
-        //init static
-        var k = JEBEMappings119.BLOCKS_MAPPING1;
+        JEBEMappings119.load();
         // Blocks
         BlockTypesCache.getAllProperties();
-        // Items
-        for (String name : fileRegistries.getDataFile().items) {
-            if (ItemType.REGISTRY.get(name) == null) {
-                ItemType.REGISTRY.register(name, new ItemType(name));
-            }
-        }
         // Entities
         for (String name : fileRegistries.getDataFile().entities) {
             if (EntityType.REGISTRY.get(name) == null) {
                 EntityType.REGISTRY.register(name, new EntityType(name));
-            }
-        }
-        // Biomes
-        for (String name : fileRegistries.getDataFile().biomes) {
-            if (BiomeType.REGISTRY.get(name) == null) {
-                BiomeType.REGISTRY.register(name, new BiomeType(name));
             }
         }
         // Tags
@@ -244,7 +229,6 @@ public class PNXWorldEditPlugin extends PluginBase {
         }
         GameModes.get("");
         WeatherTypes.get("");
-        JEBEMappings119.load();
     }
 
     public FileRegistries getFileRegistries() {

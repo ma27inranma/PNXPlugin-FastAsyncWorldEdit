@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit.listener;
+package com.sk89q.fastasyncworldedit.pnx.listener;
 
 import cn.nukkit.Player;
 import cn.nukkit.Server;

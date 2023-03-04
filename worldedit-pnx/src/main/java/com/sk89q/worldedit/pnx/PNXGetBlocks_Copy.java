@@ -35,14 +35,14 @@ public class PNXGetBlocks_Copy implements IChunkGet {
     private final int minHeight;
     private final int maxHeight;
     final Level serverLevel;
-    final cn.nukkit.level.format.generic.BaseFullChunk levelChunk;
+    final cn.nukkit.level.format.anvil.Chunk levelChunk;
     private byte[][] biomes;
 
-    protected PNXGetBlocks_Copy(cn.nukkit.level.format.generic.BaseFullChunk levelChunk) {
+    protected PNXGetBlocks_Copy(Level serverLevel, cn.nukkit.level.format.anvil.Chunk levelChunk) {
         this.levelChunk = levelChunk;
-        this.serverLevel = levelChunk.getProvider().getLevel();
-        this.minHeight = serverLevel.getMaxHeight();
-        this.maxHeight = serverLevel.getMinHeight() + 1;
+        this.serverLevel = serverLevel;
+        this.minHeight = serverLevel.getMinHeight() + 1;
+        this.maxHeight = serverLevel.getMaxHeight();
         this.blocks = new char[getSectionCount()][];
         this.biomes = new byte[getSectionCount()][4096];
     }

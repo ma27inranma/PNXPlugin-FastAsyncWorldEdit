@@ -6,6 +6,7 @@ import com.google.gson.GsonBuilder;
 import com.sk89q.worldedit.pnx.PNXWorldEditPlugin;
 import com.sk89q.worldedit.util.io.ResourceLoader;
 import com.sk89q.worldedit.world.biome.BiomeType;
+import com.sk89q.worldedit.world.item.ItemType;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.io.IOException;
@@ -76,13 +77,11 @@ public final class JEBEMappings119 {
                     map2.forEach((k, v) -> {
                         var name = v.get("bedrock_identifier").toString();
                         Item nkItem = Item.fromString(name);
-                        if (v.containsKey("bedrock_data")) {
+                        if (v.containsKey("bedrock_data") && nkItem.hasMeta() && nkItem.getDamage() == 0) {
                             nkItem.setDamage(Double.valueOf(v.get("bedrock_data").toString()).intValue());
                         }
-                        ITEMS_MAPPING.put(
-                                HashItem.of(nkItem),
-                                new com.sk89q.worldedit.world.item.ItemType(k)
-                        );
+                        ItemType.REGISTRY.register(k, new com.sk89q.worldedit.world.item.ItemType(k));
+                        ITEMS_MAPPING.put(HashItem.of(nkItem), ItemType.REGISTRY.get(k));
                     });
                 }
             }
@@ -99,9 +98,8 @@ public final class JEBEMappings119 {
                         var nkBiome = cn.nukkit.level.biome.Biome.getBiome(Double
                                 .valueOf(v.get("bedrock_id").toString())
                                 .intValue());
-                        BIOMES_MAPPING.put(
-                                nkBiome, new BiomeType(k)
-                        );
+                        BiomeType.REGISTRY.register(k, new BiomeType(k));
+                        BIOMES_MAPPING.put(nkBiome, BiomeType.REGISTRY.get(k));
                     });
                 }
             }

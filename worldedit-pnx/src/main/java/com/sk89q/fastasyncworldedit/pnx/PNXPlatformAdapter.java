@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit;
+package com.sk89q.fastasyncworldedit.pnx;
 
 import cn.nukkit.Player;
 import cn.nukkit.level.Position;

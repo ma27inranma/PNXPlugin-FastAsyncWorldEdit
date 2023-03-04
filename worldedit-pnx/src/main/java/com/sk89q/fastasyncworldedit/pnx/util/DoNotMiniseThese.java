@@ -1,4 +1,4 @@
-package com.sk89q.fastasyncworldedit.bukkit.util;
+package com.sk89q.fastasyncworldedit.pnx.util;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectLinkedOpenHashMap;
