@@ -449,7 +449,7 @@ public final class PNXAdapter {
         } else {
             if (JEBEMappings119.BLOCKS_MAPPING2.containsKey(blockData)) {
                 var jeBlockState = BlockState.get(JEBEMappings119.BLOCKS_MAPPING2.get(blockData));
-                JEBEMappings119.BLOCKS_MAPPING_CACHE.put(blockData, jeBlockState);
+                JEBEMappings119.BLOCKS_MAPPING_CACHE.forcePut(blockData, jeBlockState);
                 return jeBlockState;
             }
         }
@@ -469,7 +469,7 @@ public final class PNXAdapter {
             var jeState = block.getAsString();
             if (JEBEMappings119.BLOCKS_MAPPING1.containsKey(jeState)) {
                 var beState = JEBEMappings119.BLOCKS_MAPPING1.get(jeState);
-                JEBEMappings119.BLOCKS_MAPPING_CACHE.put(beState, block);
+                JEBEMappings119.BLOCKS_MAPPING_CACHE.forcePut(beState, block);
                 return beState;
             } else {
                 return cn.nukkit.blockstate.BlockState.AIR;
