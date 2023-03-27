@@ -24,18 +24,16 @@ val localImplementation = configurations.create("localImplementation") {
 }
 
 dependencies {
-    /*compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.19.63-r1") {
+    compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.19.70-r1") {
         exclude("junit", "junit")
         exclude(group = "org.slf4j", module = "slf4j-api")
-    }*/
+    }
     // Modules
     api(projects.worldeditCore)
     api(projects.worldeditLibs.pnx)
 
     // Minecraft expectations
     implementation(libs.fastutil)
-    // Platform expectations
-    compileOnly(files("D:\\idea\\project\\PowerNukkitX\\target\\powernukkitx-1.19.63-r1-shaded.jar"))
     // Logging
     localImplementation("org.apache.logging.log4j:log4j-api")
     localImplementation(libs.log4jBom) {

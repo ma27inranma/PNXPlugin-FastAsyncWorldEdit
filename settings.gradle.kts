@@ -2,7 +2,7 @@ rootProject.name = "FastAsyncWorldEdit"
 
 include("worldedit-libs")
 
-listOf("pnx", "core", "cli").forEach {
+listOf("pnx", "core").forEach {
     include("worldedit-libs:$it")
     include("worldedit-$it")
 }
