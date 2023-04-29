@@ -35,7 +35,7 @@ dependencies {
     // Minecraft expectations
     implementation(libs.fastutil)
     // Platform expectations
-    compileOnly(files("D:\\idea\\project\\PowerNukkitX\\target\\powernukkitx-1.19.70-r1-shaded.jar"))
+    compileOnly(files("D:\\idea\\project\\PowerNukkitX\\target\\powernukkitx-1.19.80-r1-shaded.jar"))
     // Logging
     localImplementation("org.apache.logging.log4j:log4j-api")
     localImplementation(libs.log4jBom) {
