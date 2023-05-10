@@ -14,6 +14,12 @@ repositories {
     maven {
         url = uri("https://www.jitpack.io")
     }
+    maven {
+        url = uri("https://repo.opencollab.dev/maven-snapshots/")
+    }
+    maven {
+        url = uri("https://repo.opencollab.dev/maven-releases/")
+    }
     flatDir { dir(File("src/main/resources")) }
 }
 
@@ -24,10 +30,10 @@ val localImplementation = configurations.create("localImplementation") {
 }
 
 dependencies {
-    /*compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.19.63-r1") {
+    compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.19.80-r2") {
         exclude("junit", "junit")
         exclude(group = "org.slf4j", module = "slf4j-api")
-    }*/
+    }
     // Modules
     api(projects.worldeditCore)
     api(projects.worldeditLibs.pnx)
@@ -35,7 +41,7 @@ dependencies {
     // Minecraft expectations
     implementation(libs.fastutil)
     // Platform expectations
-    compileOnly(files("D:\\idea\\project\\PowerNukkitX\\target\\powernukkitx-1.19.80-r1-shaded.jar"))
+//    compileOnly(files("D:\\idea\\project\\PowerNukkitX\\target\\powernukkitx-1.19.80-r1-shaded.jar"))
     // Logging
     localImplementation("org.apache.logging.log4j:log4j-api")
     localImplementation(libs.log4jBom) {
