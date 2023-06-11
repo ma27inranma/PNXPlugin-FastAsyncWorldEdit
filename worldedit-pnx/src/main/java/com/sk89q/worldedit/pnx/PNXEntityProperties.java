@@ -25,8 +25,8 @@ import cn.nukkit.blockentity.BlockEntityBanner;
 import cn.nukkit.blockentity.BlockEntityItemFrame;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityLiving;
+import cn.nukkit.entity.EntityOwnable;
 import cn.nukkit.entity.EntitySwimmable;
-import cn.nukkit.entity.EntityTamable;
 import cn.nukkit.entity.IHuman;
 import cn.nukkit.entity.item.EntityArmorStand;
 import cn.nukkit.entity.item.EntityBoat;
@@ -201,7 +201,7 @@ class PNXEntityProperties implements EntityProperties {
     @Override
     public boolean isTamed() {
         if (entity != null) {
-            return entity instanceof EntityTamable;
+            return entity instanceof EntityOwnable;
         } else {
             return false;
         }

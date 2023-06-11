@@ -22,6 +22,7 @@ package com.sk89q.worldedit.pnx;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.block.Block;
+import cn.nukkit.block.customblock.CustomBlock;
 import cn.nukkit.command.CommandSender;
 import cn.nukkit.item.Item;
 import cn.nukkit.item.ItemBlock;
@@ -486,6 +487,9 @@ public final class PNXAdapter {
      */
     public static BlockState adapt(Block block) throws WorldEditException {
         checkNotNull(block);
+        if (block instanceof CustomBlock) {
+            BlockState.get("minecraft:air");
+        }
         return adapt(block.getCurrentState());
     }
 
@@ -512,6 +516,9 @@ public final class PNXAdapter {
      */
     public static BaseItemStack adapt(Item item) {
         checkNotNull(item);
+        if (!new Identifier(item.getNamespaceId()).getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
+            BlockState.get("minecraft:air");
+        }
         return new PNXItemStack(item);
     }
 

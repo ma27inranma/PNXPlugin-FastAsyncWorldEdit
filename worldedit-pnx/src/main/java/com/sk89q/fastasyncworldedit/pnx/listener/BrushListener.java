@@ -45,6 +45,7 @@ public class BrushListener implements Listener {
                 final PlayerInventory inv = pnxPlayer.getInventory();
                 final Item item = inv.getItem(slot);
                 final Item newItem = inv.getItem(oldSlot);
+
                 inv.setItem(slot, newItem);
                 inv.setItem(oldSlot, item);
                 inv.sendContents(pnxPlayer);
