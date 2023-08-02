@@ -30,7 +30,7 @@ val localImplementation = configurations.create("localImplementation") {
 }
 
 dependencies {
-    compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.20.0-r1") {
+    compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.20.10-r1") {
         exclude("junit", "junit")
         exclude(group = "org.slf4j", module = "slf4j-api")
     }

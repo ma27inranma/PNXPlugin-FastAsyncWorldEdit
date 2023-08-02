@@ -273,15 +273,13 @@ public class PNXBlockRegistry extends BundledBlockRegistry {
     private Property<?> createProperty(String type, String key, List<String> values) {
         switch (type) {
             case "int" -> {
-                List<Integer> fixedValues = values.stream().map(Integer::parseInt).collect(Collectors.toList());
-                return new IntegerProperty(key, fixedValues);
+                return new IntegerProperty(key, values.stream().map(Integer::parseInt).collect(Collectors.toList()));
             }
             case "bool" -> {
-                List<Boolean> fixedValues = values.stream().map(Boolean::parseBoolean).collect(Collectors.toList());
-                return new BooleanProperty(key, fixedValues);
+                return new BooleanProperty(key, values.stream().map(Boolean::parseBoolean).collect(Collectors.toList()));
             }
             case "enum" -> {
-                return new EnumProperty(key, values);
+                return new EnumProperty(key, values.stream().map(String::toLowerCase).collect(Collectors.toList()));
             }
             case "direction" -> {
                 List<Direction> fixedValues = values

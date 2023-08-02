@@ -35,6 +35,8 @@ import java.util.Map;
 
 public class FileRegistries {
 
+    private static final int DATA_VERSION = 3465;
+
     private final PNXWorldEditPlugin app;
     private final Gson gson = new GsonBuilder().create();
 
@@ -51,7 +53,7 @@ public class FileRegistries {
                 .queryCapability(Capability.CONFIGURATION)
                 .getResourceLoader();
         try {
-            URL url = resourceLoader.getRootResource("data/3105.json");
+            URL url = resourceLoader.getRootResource("data/" + DATA_VERSION + ".json");
             this.dataFile = gson.fromJson(Resources.toString(url, StandardCharsets.UTF_8), DataFile.class);
         } catch (IOException e) {
             throw new RuntimeException(
