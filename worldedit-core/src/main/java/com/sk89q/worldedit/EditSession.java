@@ -30,6 +30,7 @@ import com.fastasyncworldedit.core.extent.ResettableExtent;
 import com.fastasyncworldedit.core.extent.SingleRegionExtent;
 import com.fastasyncworldedit.core.extent.SourceMaskExtent;
 import com.fastasyncworldedit.core.extent.clipboard.WorldCopyClipboard;
+import com.fastasyncworldedit.core.extent.processor.ExtentBatchProcessorHolder;
 import com.fastasyncworldedit.core.extent.processor.lighting.NullRelighter;
 import com.fastasyncworldedit.core.extent.processor.lighting.Relighter;
 import com.fastasyncworldedit.core.function.SurfaceRegionFunction;
@@ -55,6 +56,7 @@ import com.fastasyncworldedit.core.queue.implementation.preloader.Preloader;
 import com.fastasyncworldedit.core.util.ExtentTraverser;
 import com.fastasyncworldedit.core.util.MaskTraverser;
 import com.fastasyncworldedit.core.util.MathMan;
+import com.fastasyncworldedit.core.util.ProcessorTraverser;
 import com.fastasyncworldedit.core.util.TaskManager;
 import com.fastasyncworldedit.core.util.collection.BlockVector3Set;
 import com.fastasyncworldedit.core.util.task.RunnableVal;
@@ -524,9 +526,17 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
      * @return mask, may be null
      */
     public Mask getMask() {
-        //FAWE start - ExtendTraverser & MaskingExtents
-        ExtentTraverser<MaskingExtent> maskingExtent = new ExtentTraverser<>(getExtent()).find(MaskingExtent.class);
-        return maskingExtent != null ? maskingExtent.get().getMask() : null;
+        //FAWE start - ExtentTraverser & MaskingExtents
+        MaskingExtent maskingExtent = new ExtentTraverser<>(getExtent()).findAndGet(MaskingExtent.class);
+        if (maskingExtent == null) {
+            ExtentBatchProcessorHolder processorExtent =
+                    new ExtentTraverser<>(getExtent()).findAndGet(ExtentBatchProcessorHolder.class);
+            if (processorExtent != null) {
+                maskingExtent =
+                        new ProcessorTraverser<>(processorExtent.getProcessor()).find(MaskingExtent.class);
+            }
+        }
+        return maskingExtent != null ? maskingExtent.getMask() : null;
         //FAWE end
     }
 
@@ -609,23 +619,31 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
     //FAWE start - use MaskingExtent & ExtentTraverser
 
     /**
-     * Set a mask.
+     * Set a mask. Combines with any existing masks, set null to clear existing masks.
      *
      * @param mask mask or null
      */
-    public void setMask(Mask mask) {
+    public void setMask(@Nullable Mask mask) {
         if (mask == null) {
             mask = Masks.alwaysTrue();
         } else {
             new MaskTraverser(mask).reset(this);
         }
-        ExtentTraverser<MaskingExtent> maskingExtent = new ExtentTraverser<>(getExtent()).find(MaskingExtent.class);
-        if (maskingExtent != null && maskingExtent.get() != null) {
-            Mask oldMask = maskingExtent.get().getMask();
+        MaskingExtent maskingExtent = new ExtentTraverser<>(getExtent()).findAndGet(MaskingExtent.class);
+        if (maskingExtent == null && mask != Masks.alwaysTrue()) {
+            ExtentBatchProcessorHolder processorExtent =
+                    new ExtentTraverser<>(getExtent()).findAndGet(ExtentBatchProcessorHolder.class);
+            if (processorExtent != null) {
+                maskingExtent =
+                        new ProcessorTraverser<>(processorExtent.getProcessor()).find(MaskingExtent.class);
+            }
+        }
+        if (maskingExtent != null) {
+            Mask oldMask = maskingExtent.getMask();
             if (oldMask instanceof ResettableMask) {
                 ((ResettableMask) oldMask).reset();
             }
-            maskingExtent.get().setMask(mask);
+            maskingExtent.setMask(mask);
         } else if (mask != Masks.alwaysTrue()) {
             addProcessor(new MaskingExtent(getExtent(), mask));
         }
@@ -2161,10 +2179,12 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         final int ceilRadiusX = (int) Math.ceil(radiusX);
         final int ceilRadiusZ = (int) Math.ceil(radiusZ);
 
-        double xSqr;
-        double zSqr;
-        double distanceSq;
+        double xSqr, zSqr, distanceSq;
+        double xn, zn;
+        double dx2, dz2;
         double nextXn = 0;
+        double nextZn, nextMinZn;
+        int xx, x_x, zz, z_z, yy;
 
         if (thickness != 0) {
             double nextMinXn = 0;
@@ -2172,19 +2192,18 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
             final double minInvRadiusZ = 1 / (radiusZ - thickness);
             forX:
             for (int x = 0; x <= ceilRadiusX; ++x) {
-                final double xn = nextXn;
-                double dx2 = nextMinXn * nextMinXn;
+                xn = nextXn;
+                dx2 = nextMinXn * nextMinXn;
                 nextXn = (x + 1) * invRadiusX;
                 nextMinXn = (x + 1) * minInvRadiusX;
-                double nextZn = 0;
-                double nextMinZn = 0;
+                nextZn = 0;
+                nextMinZn = 0;
                 xSqr = xn * xn;
+                xx = px + x;
+                x_x = px - x;
                 forZ:
                 for (int z = 0; z <= ceilRadiusZ; ++z) {
-                    final double zn = nextZn;
-                    double dz2 = nextMinZn * nextMinZn;
-                    nextZn = (z + 1) * invRadiusZ;
-                    nextMinZn = (z + 1) * minInvRadiusZ;
+                    zn = nextZn;
                     zSqr = zn * zn;
                     distanceSq = xSqr + zSqr;
                     if (distanceSq > 1) {
@@ -2193,16 +2212,23 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
                         }
                         break forZ;
                     }
+                    dz2 = nextMinZn * nextMinZn;
+                    nextZn = (z + 1) * invRadiusZ;
+                    nextMinZn = (z + 1) * minInvRadiusZ;
 
                     if ((dz2 + nextMinXn * nextMinXn <= 1) && (nextMinZn * nextMinZn + dx2 <= 1)) {
                         continue;
                     }
 
+                    zz = pz + z;
+                    z_z = pz - z;
+
                     for (int y = 0; y < height; ++y) {
-                        this.setBlock(mutableBlockVector3.setComponents(px + x, py + y, pz + z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px - x, py + y, pz + z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px + x, py + y, pz - z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px - x, py + y, pz - z), block);
+                        yy = py + y;
+                        this.setBlock(xx, yy, zz, block);
+                        this.setBlock(x_x, yy, zz, block);
+                        this.setBlock(xx, yy, z_z, block);
+                        this.setBlock(x_x, yy, z_z, block);
                     }
                 }
             }
@@ -2210,14 +2236,17 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
             //FAWE end
             forX:
             for (int x = 0; x <= ceilRadiusX; ++x) {
-                final double xn = nextXn;
+                xn = nextXn;
                 nextXn = (x + 1) * invRadiusX;
-                double nextZn = 0;
+                nextZn = 0;
                 xSqr = xn * xn;
+                // FAWE start
+                xx = px + x;
+                x_x = px - x;
+                //FAWE end
                 forZ:
                 for (int z = 0; z <= ceilRadiusZ; ++z) {
-                    final double zn = nextZn;
-                    nextZn = (z + 1) * invRadiusZ;
+                    zn = nextZn;
                     zSqr = zn * zn;
                     distanceSq = xSqr + zSqr;
                     if (distanceSq > 1) {
@@ -2227,18 +2256,27 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
                         break forZ;
                     }
 
+                    // FAWE start
+                    nextZn = (z + 1) * invRadiusZ;
+                    //FAWE end
                     if (!filled) {
                         if ((zSqr + nextXn * nextXn <= 1) && (nextZn * nextZn + xSqr <= 1)) {
                             continue;
                         }
                     }
 
+                    //FAWE start
+                    zz = pz + z;
+                    z_z = pz - z;
+                    //FAWE end
+
                     for (int y = 0; y < height; ++y) {
-                        //FAWE start - mutable
-                        this.setBlock(mutableBlockVector3.setComponents(px + x, py + y, pz + z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px - x, py + y, pz + z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px + x, py + y, pz - z), block);
-                        this.setBlock(mutableBlockVector3.setComponents(px - x, py + y, pz - z), block);
+                        //FAWE start
+                        yy = py + y;
+                        this.setBlock(xx, yy, zz, block);
+                        this.setBlock(x_x, yy, zz, block);
+                        this.setBlock(xx, yy, z_z, block);
+                        this.setBlock(x_x, yy, z_z, block);
                         //FAWE end
                     }
                 }
@@ -2248,6 +2286,90 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         //FAWE start
         return this.changes;
         //FAWE end
+    }
+
+    /**
+     * Makes a cone.
+     *
+     * @param pos Center of the cone
+     * @param block The block pattern to use
+     * @param radiusX The cone's largest north/south extent
+     * @param radiusZ The cone's largest east/west extent
+     * @param height The cone's up/down extent. If negative, extend downward.
+     * @param filled If false, only a shell will be generated.
+     * @param thickness The cone's wall thickness, if it's hollow.
+     * @return number of blocks changed
+     * @throws MaxChangedBlocksException thrown if too many blocks are changed
+     */
+    public int makeCone(
+            BlockVector3 pos,
+            Pattern block,
+            double radiusX,
+            double radiusZ,
+            int height,
+            boolean filled,
+            double thickness
+    ) throws MaxChangedBlocksException {
+        int affected = 0;
+
+        final int ceilRadiusX = (int) Math.ceil(radiusX);
+        final int ceilRadiusZ = (int) Math.ceil(radiusZ);
+
+        double rx2 = Math.pow(radiusX, 2);
+        double ry2 = Math.pow(height, 2);
+        double rz2 = Math.pow(radiusZ, 2);
+
+        int cx = pos.getX();
+        int cy = pos.getY();
+        int cz = pos.getZ();
+
+        for (int y = 0; y < height; ++y) {
+            double ySquaredMinusHeightOverHeightSquared = Math.pow(y - height, 2) / ry2;
+            int yy = cy + y;
+            forX:
+            for (int x = 0; x <= ceilRadiusX; ++x) {
+                double xSquaredOverRadiusX = Math.pow(x, 2) / rx2;
+                int xx = cx + x;
+                forZ:
+                for (int z = 0; z <= ceilRadiusZ; ++z) {
+                    int zz = cz + z;
+                    double zSquaredOverRadiusZ = Math.pow(z, 2) / rz2;
+                    double distanceFromOriginMinusHeightSquared = xSquaredOverRadiusX + zSquaredOverRadiusZ - ySquaredMinusHeightOverHeightSquared;
+
+                    if (distanceFromOriginMinusHeightSquared > 1) {
+                        if (z == 0) {
+                            break forX;
+                        }
+                        break forZ;
+                    }
+
+                    if (!filled) {
+                        double xNext = Math.pow(x + thickness, 2) / rx2 + zSquaredOverRadiusZ - ySquaredMinusHeightOverHeightSquared;
+                        double yNext = xSquaredOverRadiusX + zSquaredOverRadiusZ - Math.pow(y + thickness - height, 2) / ry2;
+                        double zNext = xSquaredOverRadiusX + Math.pow(z + thickness, 2) / rz2 - ySquaredMinusHeightOverHeightSquared;
+                        if (xNext <= 0 && zNext <= 0 && (yNext <= 0 && y + thickness != height)) {
+                            continue;
+                        }
+                    }
+
+                    if (distanceFromOriginMinusHeightSquared <= 0) {
+                        if (setBlock(xx, yy, zz, block)) {
+                            ++affected;
+                        }
+                        if (setBlock(xx, yy, zz, block)) {
+                            ++affected;
+                        }
+                        if (setBlock(xx, yy, zz, block)) {
+                            ++affected;
+                        }
+                        if (setBlock(xx, yy, zz, block)) {
+                            ++affected;
+                        }
+                    }
+                }
+            }
+        }
+        return affected;
     }
 
     /**
@@ -2293,7 +2415,6 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         int px = pos.getBlockX();
         int py = pos.getBlockY();
         int pz = pos.getBlockZ();
-        MutableBlockVector3 mutable = new MutableBlockVector3();
 
         final int ceilRadiusX = (int) Math.ceil(radiusX);
         final int ceilRadiusY = (int) Math.ceil(radiusY);
@@ -2301,31 +2422,43 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
 
         double threshold = 0.5;
 
+        double dx, dy, dz, dxy, dxz, dyz, dxyz;
+        int xx, x_x, yy, y_y, zz, z_z;
+        double xnx, yny, znz;
         double nextXn = 0;
-        double dx;
-        double dy;
-        double dz;
-        double dxy;
-        double dxyz;
+        double nextYn, nextZn;
+        double nextXnSq, nextYnSq, nextZnSq;
+        double xn, yn, zn;
         forX:
         for (int x = 0; x <= ceilRadiusX; ++x) {
-            final double xn = nextXn;
+            xn = nextXn;
             dx = xn * xn;
             nextXn = (x + 1) * invRadiusX;
-            double nextYn = 0;
+            nextXnSq = nextXn * nextXn;
+            nextYn = 0;
+            xx = px + x;
+            x_x = px - x;
+            xnx = x * nx;
             forY:
             for (int y = 0; y <= ceilRadiusY; ++y) {
-                final double yn = nextYn;
+                yn = nextYn;
                 dy = yn * yn;
                 dxy = dx + dy;
                 nextYn = (y + 1) * invRadiusY;
-                double nextZn = 0;
+                nextYnSq = nextYn * nextYn;
+                nextZn = 0;
+                yy = py + y;
+                y_y = py - y;
+                yny = y * ny;
                 forZ:
                 for (int z = 0; z <= ceilRadiusZ; ++z) {
-                    final double zn = nextZn;
+                    zn = nextZn;
                     dz = zn * zn;
                     dxyz = dxy + dz;
+                    dxz = dx + dz;
+                    dyz = dy + dz;
                     nextZn = (z + 1) * invRadiusZ;
+                    nextZnSq = nextZn * nextZn;
                     if (dxyz > 1) {
                         if (z == 0) {
                             if (y == 0) {
@@ -2336,34 +2469,37 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
                         break forZ;
                     }
                     if (!filled) {
-                        if (nextXn * nextXn + dy + dz <= 1 && nextYn * nextYn + dx + dz <= 1 && nextZn * nextZn + dx + dy <= 1) {
+                        if (nextXnSq + dyz <= 1 && nextYnSq + dxz <= 1 && nextZnSq + dxy <= 1) {
                             continue;
                         }
                     }
+                    zz = pz + z;
+                    z_z = pz - z;
+                    znz = z * nz;
 
-                    if (Math.abs((x) * nx + (y) * ny + (z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px + x, py + y, pz + z), block);
+                    if (Math.abs(xnx + yny + znz) < threshold) {
+                        setBlock(xx, yy, zz, block);
                     }
-                    if (Math.abs((-x) * nx + (y) * ny + (z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px - x, py + y, pz + z), block);
+                    if (Math.abs(-xnx + yny + znz) < threshold) {
+                        setBlock(x_x, yy, zz, block);
                     }
-                    if (Math.abs((x) * nx + (-y) * ny + (z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px + x, py - y, pz + z), block);
+                    if (Math.abs(xnx - yny + znz) < threshold) {
+                        setBlock(xx, y_y, zz, block);
                     }
-                    if (Math.abs((x) * nx + (y) * ny + (-z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px + x, py + y, pz - z), block);
+                    if (Math.abs(xnx + yny - znz) < threshold) {
+                        setBlock(xx, yy, z_z, block);
                     }
-                    if (Math.abs((-x) * nx + (-y) * ny + (z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px - x, py - y, pz + z), block);
+                    if (Math.abs(-xnx - yny + znz) < threshold) {
+                        setBlock(x_x, y_y, zz, block);
                     }
-                    if (Math.abs((x) * nx + (-y) * ny + (-z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px + x, py - y, pz - z), block);
+                    if (Math.abs(xnx - yny - znz) < threshold) {
+                        setBlock(xx, y_y, z_z, block);
                     }
-                    if (Math.abs((-x) * nx + (y) * ny + (-z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px - x, py + y, pz - z), block);
+                    if (Math.abs(-xnx + yny - znz) < threshold) {
+                        setBlock(x_x, yy, z_z, block);
                     }
-                    if (Math.abs((-x) * nx + (-y) * ny + (-z) * nz) < threshold) {
-                        setBlock(mutable.setComponents(px - x, py - y, pz - z), block);
+                    if (Math.abs(-xnx - yny - znz) < threshold) {
+                        setBlock(x_x, y_y, z_z, block);
                     }
                 }
             }
@@ -2418,29 +2554,38 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         final int ceilRadiusZ = (int) Math.ceil(radiusZ);
 
         //FAWE start
-        int yy;
-        //FAWE end
-
         double nextXn = 0;
+        double nextYn, nextZn;
+        double nextXnSq, nextYnSq, nextZnSq;
+        double xn, yn, zn, dx, dy, dz;
+        double dxy, dxz, dyz, dxyz;
+        int xx, x_x, yy, zz, z_z;
+
         forX:
         for (int x = 0; x <= ceilRadiusX; ++x) {
-            final double xn = nextXn;
-            double dx = xn * xn;
+            xn = nextXn;
+            dx = xn * xn;
             nextXn = (x + 1) * invRadiusX;
-            double nextZn = 0;
+            nextXnSq = nextXn * nextXn;
+            xx = px + x;
+            x_x = px - x;
+            nextZn = 0;
             forZ:
             for (int z = 0; z <= ceilRadiusZ; ++z) {
-                final double zn = nextZn;
-                double dz = zn * zn;
-                double dxz = dx + dz;
+                zn = nextZn;
+                dz = zn * zn;
+                dxz = dx + dz;
                 nextZn = (z + 1) * invRadiusZ;
-                double nextYn = 0;
+                nextZnSq = nextZn * nextZn;
+                zz = pz + z;
+                z_z = pz - z;
+                nextYn = 0;
 
                 forY:
                 for (int y = 0; y <= ceilRadiusY; ++y) {
-                    final double yn = nextYn;
-                    double dy = yn * yn;
-                    double dxyz = dxz + dy;
+                    yn = nextYn;
+                    dy = yn * yn;
+                    dxyz = dxz + dy;
                     nextYn = (y + 1) * invRadiusY;
 
                     if (dxyz > 1) {
@@ -2453,40 +2598,45 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
                         break forY;
                     }
 
+                    nextYnSq = nextYn * nextYn;
+                    dxy = dx + dy;
+                    dyz = dy + dz;
+
                     if (!filled) {
-                        if (nextXn * nextXn + dy + dz <= 1 && nextYn * nextYn + dx + dz <= 1 && nextZn * nextZn + dx + dy <= 1) {
+                        if (nextXnSq + dyz <= 1 && nextYnSq + dxz <= 1 && nextZnSq + dxy <= 1) {
                             continue;
                         }
                     }
                     //FAWE start
                     yy = py + y;
                     if (yy <= maxY) {
-                        this.setBlock(px + x, py + y, pz + z, block);
+                        this.setBlock(xx, yy, zz, block);
                         if (x != 0) {
-                            this.setBlock(px - x, py + y, pz + z, block);
+                            this.setBlock(x_x, yy, zz, block);
                         }
                         if (z != 0) {
-                            this.setBlock(px + x, py + y, pz - z, block);
+                            this.setBlock(xx, yy, z_z, block);
                             if (x != 0) {
-                                this.setBlock(px - x, py + y, pz - z, block);
+                                this.setBlock(x_x, yy, z_z, block);
                             }
                         }
                     }
                     if (y != 0 && (yy = py - y) >= minY) {
-                        this.setBlock(px + x, yy, pz + z, block);
+                        this.setBlock(xx, yy, zz, block);
                         if (x != 0) {
-                            this.setBlock(px - x, yy, pz + z, block);
+                            this.setBlock(x_x, yy, zz, block);
                         }
                         if (z != 0) {
-                            this.setBlock(px + x, yy, pz - z, block);
+                            this.setBlock(xx, yy, z_z, block);
                             if (x != 0) {
-                                this.setBlock(px - x, yy, pz - z, block);
+                                this.setBlock(x_x, yy, z_z, block);
                             }
                         }
                     }
                 }
             }
         }
+        //FAWE end
 
         return changes;
         //FAWE end
@@ -2509,17 +2659,22 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         int bz = position.getZ();
 
         int height = size;
+        int yy, xx, x_x, zz, z_z;
 
         for (int y = 0; y <= height; ++y) {
             size--;
+            yy = y + by;
             for (int x = 0; x <= size; ++x) {
+                xx = bx + x;
+                x_x = bx - x;
                 for (int z = 0; z <= size; ++z) {
-
+                    zz = bz + z;
+                    z_z = bz - z;
                     if ((filled && z <= size && x <= size) || z == size || x == size) {
-                        setBlock(x + bx, y + by, z + bz, block);
-                        setBlock(-x + bx, y + by, z + bz, block);
-                        setBlock(x + bx, y + by, -z + bz, block);
-                        setBlock(-x + bx, y + by, -z + bz, block);
+                        setBlock(xx, yy, zz, block);
+                        setBlock(x_x, yy, zz, block);
+                        setBlock(xx, yy, z_z, block);
+                        setBlock(x_x, yy, z_z, block);
                     }
                 }
             }
@@ -2938,9 +3093,10 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
                 } catch (ExpressionTimeoutException e) {
                     timedOut[0] = timedOut[0] + 1;
                     return null;
+                } catch (RuntimeException e) {
+                    throw e;
                 } catch (Exception e) {
-                    LOGGER.warn("Failed to create shape", e);
-                    return null;
+                    throw new RuntimeException(e);
                 }
             }
         };
@@ -3774,19 +3930,28 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
         int radiusSqr = (int) (size * size);
         int sizeInt = (int) size * 2;
 
+        int xx, yy, zz;
+        double distance;
+        double noise;
+
         if (sphericity == 1) {
+            double nx, ny, nz;
+            double d1, d2;
             for (int x = -sizeInt; x <= sizeInt; x++) {
-                double nx = seedX + x * distort;
-                double d1 = x * x * modX;
+                nx = seedX + x * distort;
+                d1 = x * x * modX;
+                xx = px + x;
                 for (int y = -sizeInt; y <= sizeInt; y++) {
-                    double d2 = d1 + y * y * modY;
-                    double ny = seedY + y * distort;
+                    d2 = d1 + y * y * modY;
+                    ny = seedY + y * distort;
+                    yy = py + y;
                     for (int z = -sizeInt; z <= sizeInt; z++) {
-                        double nz = seedZ + z * distort;
-                        double distance = d2 + z * z * modZ;
-                        double noise = amplitude * SimplexNoise.noise(nx, ny, nz);
+                        nz = seedZ + z * distort;
+                        distance = d2 + z * z * modZ;
+                        zz = pz + z;
+                        noise = amplitude * SimplexNoise.noise(nx, ny, nz);
                         if (distance + distance * noise < radiusSqr) {
-                            setBlock(px + x, py + y, pz + z, pattern);
+                            setBlock(xx, yy, zz, pattern);
                         }
                     }
                 }
@@ -3803,39 +3968,48 @@ public class EditSession extends PassthroughExtent implements AutoCloseable {
 
             MutableVector3 mutable = new MutableVector3();
             double roughness = 1 - sphericity;
+            int x;
+            int y;
+            int z;
+            double xScaled;
+            double yScaled;
+            double zScaled;
+            double manDist;
+            double distSqr;
             for (int xr = -sizeInt; xr <= sizeInt; xr++) {
+                xx = px + xr;
                 for (int yr = -sizeInt; yr <= sizeInt; yr++) {
+                    yy = py + yr;
                     for (int zr = -sizeInt; zr <= sizeInt; zr++) {
+                        zz = pz + zr;
                         // pt == mutable as it's a MutableVector3
                         // so it must be set each time
-                        mutable.mutX(xr);
-                        mutable.mutY(yr);
-                        mutable.mutZ(zr);
+                        mutable.setComponents(xr, yr, zr);
                         Vector3 pt = transform.apply(mutable);
-                        int x = MathMan.roundInt(pt.getX());
-                        int y = MathMan.roundInt(pt.getY());
-                        int z = MathMan.roundInt(pt.getZ());
+                        x = MathMan.roundInt(pt.getX());
+                        y = MathMan.roundInt(pt.getY());
+                        z = MathMan.roundInt(pt.getZ());
 
-                        double xScaled = Math.abs(x) * modX;
-                        double yScaled = Math.abs(y) * modY;
-                        double zScaled = Math.abs(z) * modZ;
-                        double manDist = xScaled + yScaled + zScaled;
-                        double distSqr = x * x * modX + z * z * modZ + y * y * modY;
+                        xScaled = Math.abs(x) * modX;
+                        yScaled = Math.abs(y) * modY;
+                        zScaled = Math.abs(z) * modZ;
+                        manDist = xScaled + yScaled + zScaled;
+                        distSqr = x * x * modX + z * z * modZ + y * y * modY;
 
-                        double distance = Math.sqrt(distSqr) * sphericity + MathMan.max(
+                        distance = Math.sqrt(distSqr) * sphericity + MathMan.max(
                                 manDist,
                                 xScaled * manScaleX,
                                 yScaled * manScaleY,
                                 zScaled * manScaleZ
                         ) * roughness;
 
-                        double noise = amplitude * SimplexNoise.noise(
+                        noise = amplitude * SimplexNoise.noise(
                                 seedX + x * distort,
                                 seedZ + z * distort,
                                 seedZ + z * distort
                         );
                         if (distance + distance * noise < r) {
-                            setBlock(px + xr, py + yr, pz + zr, pattern);
+                            setBlock(xx, yy, zz, pattern);
                         }
                     }
                 }

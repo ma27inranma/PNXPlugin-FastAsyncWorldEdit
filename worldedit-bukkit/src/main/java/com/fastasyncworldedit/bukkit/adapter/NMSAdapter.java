@@ -84,7 +84,7 @@ public class NMSAdapter implements FAWEPlatformAdapterImpl {
                         getArr = get.apply(layer);
                     }
                     // write to set array as this should be a copied array, and will be important when the changes are written
-                    // to the GET chunk cached by FAWE
+                    // to the GET chunk cached by FAWE. Future dords, actually read this comment please.
                     set[i] = switch (ordinal = getArr[i]) {
                         case BlockTypesCache.ReservedIDs.__RESERVED__ -> {
                             nonAir--;

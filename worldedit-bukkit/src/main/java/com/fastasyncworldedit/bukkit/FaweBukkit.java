@@ -108,6 +108,14 @@ public class FaweBukkit implements IFawe, Listener {
         if (version.isEqualOrHigherThan(MinecraftVersion.CAVES_18) && Settings.settings().HISTORY.SMALL_EDITS) {
             LOGGER.warn("Small-edits enabled (maximum y range of 0 -> 256) with 1.18 world heights. Are you sure?");
         }
+
+        if (version.isEqualOrLowerThan(MinecraftVersion.ONE_DOT_SIXTEEN_EOL)) {
+            LOGGER.warn("You are running Minecraft 1.16.5. This version has been released over two years ago (January 2021).");
+            LOGGER.warn("FastAsyncWorldEdit will stop operating on this version in the near future.");
+            LOGGER.warn("Neither Mojang, nor Spigot or other software vendors support this version anymore." +
+                    "Please update your server to a newer version of Minecraft (1.20+) to continue receiving updates and " +
+                    "support.");
+        }
     }
 
     @Override
@@ -225,7 +233,7 @@ public class FaweBukkit implements IFawe, Listener {
         final Plugin residencePlugin = Bukkit.getServer().getPluginManager().getPlugin("Residence");
         if (residencePlugin != null && residencePlugin.isEnabled()) {
             try {
-                managers.add(new ResidenceFeature(residencePlugin, this));
+                managers.add(new ResidenceFeature(residencePlugin));
                 LOGGER.info("Attempting to use plugin 'Residence'");
             } catch (Throwable ignored) {
             }
@@ -317,11 +325,11 @@ public class FaweBukkit implements IFawe, Listener {
         if (plotSquared == null) {
             return;
         }
-        if (PlotSquared.get().getVersion().version[0] == 6) {
+        if (PlotSquared.get().getVersion().version[0] == 7) {
             WEManager.weManager().addManager(new com.fastasyncworldedit.bukkit.regions.plotsquared.PlotSquaredFeature());
-            LOGGER.info("Plugin 'PlotSquared' v6 found. Using it now.");
+            LOGGER.info("Plugin 'PlotSquared' v7 found. Using it now.");
         } else {
-            LOGGER.error("Incompatible version of PlotSquared found. Please use PlotSquared v6.");
+            LOGGER.error("Incompatible version of PlotSquared found. Please use PlotSquared v7.");
             LOGGER.info("https://www.spigotmc.org/resources/77506/");
         }
     }
