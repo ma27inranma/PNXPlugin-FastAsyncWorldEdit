@@ -3,6 +3,7 @@ package com.sk89q.worldedit.pnx;
 import cn.nukkit.blockentity.BlockEntity;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.level.Level;
+import cn.nukkit.level.format.IChunk;
 import com.fastasyncworldedit.core.extent.processor.heightmap.HeightMapType;
 import com.fastasyncworldedit.core.queue.IBlocks;
 import com.fastasyncworldedit.core.queue.IChunkGet;
@@ -35,10 +36,10 @@ public class PNXGetBlocks_Copy implements IChunkGet {
     private final int minHeight;
     private final int maxHeight;
     final Level serverLevel;
-    final cn.nukkit.level.format.anvil.Chunk levelChunk;
+    final IChunk levelChunk;
     private byte[][] biomes;
 
-    protected PNXGetBlocks_Copy(Level serverLevel, cn.nukkit.level.format.anvil.Chunk levelChunk) {
+    protected PNXGetBlocks_Copy(Level serverLevel, IChunk levelChunk) {
         this.levelChunk = levelChunk;
         this.serverLevel = serverLevel;
         this.minHeight = serverLevel.getMinHeight() + 1;
@@ -132,7 +133,7 @@ public class PNXGetBlocks_Copy implements IChunkGet {
 
     @Override
     public BiomeType getBiomeType(int x, int y, int z) {
-        return PNXAdapter.adapt(cn.nukkit.level.biome.Biome.getBiome(serverLevel.getBiomeId(x, y, z)));
+        return PNXAdapter.adapt(serverLevel.getBiomeId(x, y, z));
     }
 
     @Override

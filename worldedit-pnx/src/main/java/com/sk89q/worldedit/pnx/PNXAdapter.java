@@ -22,6 +22,7 @@ package com.sk89q.worldedit.pnx;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.block.Block;
+import cn.nukkit.block.BlockAir;
 import cn.nukkit.block.customblock.CustomBlock;
 import cn.nukkit.command.CommandSender;
 import cn.nukkit.item.Item;
@@ -29,7 +30,8 @@ import cn.nukkit.item.ItemBlock;
 import cn.nukkit.level.Position;
 import cn.nukkit.math.BlockFace;
 import cn.nukkit.utils.Identifier;
-import com.sk89q.pnx.util.mappings.JEBEMappings119;
+import com.sk89q.pnx.util.mappings.MappingRegistries;
+import com.sk89q.pnx.util.mappings.type.ItemMappings;
 import com.sk89q.worldedit.NotABlockException;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
@@ -50,6 +52,7 @@ import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.entity.EntityTypes;
 import com.sk89q.worldedit.world.item.ItemType;
+import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -344,7 +347,7 @@ public final class PNXAdapter {
      * @return The PNX Material
      */
     public static Item adapt(ItemType itemType) {
-        return JEBEMappings119.ITEMS_MAPPING.inverse().get(itemType).getItem();
+        return MappingRegistries.ITEM.getMapping().inverse().get(itemType).getItem();
     }
 
     /**
@@ -353,15 +356,16 @@ public final class PNXAdapter {
      * @param blockType The WorldEdit BlockType
      * @return The PNX BlockState
      */
-    public static cn.nukkit.blockstate.BlockState adapt(BlockType blockType) {
+    @NotNull
+    public static cn.nukkit.block.BlockState adapt(BlockType blockType) {
         final FileRegistries.BlockManifest blockManifest = PNXWorldEditPlugin
                 .getInstance()
                 .getFileRegistries()
                 .getDataFile().blocks.get(blockType.getId());
         if (blockManifest != null) {
-            return JEBEMappings119.BLOCKS_MAPPING1.get(blockManifest.defaultstate);
+            return MappingRegistries.BLOCKS.getPNXBlock(blockManifest.defaultstate);
         } else {
-            return null;
+            return BlockAir.STATE;
         }
     }
 
@@ -371,15 +375,15 @@ public final class PNXAdapter {
      * @param biome PNX Biome
      * @return WorldEdit BiomeType
      */
-    public static BiomeType adapt(cn.nukkit.level.biome.Biome biome) {
-        return JEBEMappings119.BIOMES_MAPPING.get(biome);
+    public static BiomeType adapt(int biome) {
+        return MappingRegistries.BIOME.get().get(biome);
     }
 
-    public static cn.nukkit.level.biome.Biome adapt(BiomeType biomeType) {
+    public static int adapt(BiomeType biomeType) {
         if (!biomeType.getId().startsWith("minecraft:")) {
             throw new IllegalArgumentException("PNX only supports vanilla biomes");
         }
-        return JEBEMappings119.BIOMES_MAPPING.inverse().get(biomeType);
+        return MappingRegistries.BIOME.get().inverse().get(biomeType);
     }
 
     /**
@@ -390,11 +394,7 @@ public final class PNXAdapter {
      */
     public static EntityType adaptEntityType(cn.nukkit.entity.Entity entityType) {
         var id = entityType.getIdentifier();
-        if (id != null) {
-            return EntityTypes.get(id.toString().toLowerCase(Locale.ROOT));
-        } else {
-            return null;
-        }
+        return EntityTypes.get(id.toLowerCase(Locale.ROOT));
     }
 
     public static cn.nukkit.entity.Entity adaptEntityType(EntityType entityType) {
@@ -414,7 +414,7 @@ public final class PNXAdapter {
     public static BlockType asBlockType(Block material) {
         checkNotNull(material);
         //FAWE start - logic moved to IPNXAdapter
-        return BlockTypes.get(material.getPersistenceName());
+        return BlockTypes.get(material.getId());
         //FAWE end
     }
 
@@ -427,11 +427,11 @@ public final class PNXAdapter {
     @Nullable
     public static ItemType asItemType(Item material) {
         //FAWE start - logic moved to IPNXAdapter
-        var result = JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
+        var result = MappingRegistries.ITEM.getMapping().get(ItemMappings.HashItem.of(material));
         if (result == null) {
             material = material.clone();
-            material.setDamage(JEBEMappings119.PNX_ITEMS_DEFAULT_DAMAGE.get(material.getNamespaceId()).intValue());
-            return JEBEMappings119.ITEMS_MAPPING.get(JEBEMappings119.HashItem.of(material));
+            material.setDamage(MappingRegistries.ITEM.getItemDamageMapping().get(material.getId()).intValue());
+            return MappingRegistries.ITEM.getMapping().get(ItemMappings.HashItem.of(material));
         } else {
             return result;
         }
@@ -444,17 +444,8 @@ public final class PNXAdapter {
      * @param blockData The PNX BlockData
      * @return The WorldEdit BlockState
      */
-    public static BlockState adapt(@Nonnull cn.nukkit.blockstate.BlockState blockData) {
-        if (JEBEMappings119.BLOCKS_MAPPING_CACHE.containsKey(blockData)) {
-            return JEBEMappings119.BLOCKS_MAPPING_CACHE.get(blockData);
-        } else {
-            if (JEBEMappings119.BLOCKS_MAPPING2.containsKey(blockData)) {
-                var jeBlockState = BlockState.get(JEBEMappings119.BLOCKS_MAPPING2.get(blockData));
-                JEBEMappings119.BLOCKS_MAPPING_CACHE.forcePut(blockData, jeBlockState);
-                return jeBlockState;
-            }
-        }
-        return BlockState.get("minecraft:air");
+    public static BlockState adapt(@Nonnull cn.nukkit.block.BlockState blockData) {
+        return MappingRegistries.BLOCKS.getFAWEBlock(blockData);
     }
 
     /**
@@ -463,19 +454,8 @@ public final class PNXAdapter {
      * @param block The WorldEdit BlockState
      * @return The PNX BlockState
      */
-    public static cn.nukkit.blockstate.BlockState adapt(@Nonnull BlockState block) {
-        if (JEBEMappings119.BLOCKS_MAPPING_CACHE.inverse().containsKey(block)) {
-            return JEBEMappings119.BLOCKS_MAPPING_CACHE.inverse().get(block);
-        } else {
-            var jeState = block.getAsString();
-            if (JEBEMappings119.BLOCKS_MAPPING1.containsKey(jeState)) {
-                var beState = JEBEMappings119.BLOCKS_MAPPING1.get(jeState);
-                JEBEMappings119.BLOCKS_MAPPING_CACHE.forcePut(beState, block);
-                return beState;
-            } else {
-                return cn.nukkit.blockstate.BlockState.AIR;
-            }
-        }
+    public static cn.nukkit.block.BlockState adapt(@Nonnull BlockState block) {
+        return MappingRegistries.BLOCKS.getPNXBlock(block.getAsString());
     }
 
     /**
@@ -490,7 +470,7 @@ public final class PNXAdapter {
         if (block instanceof CustomBlock) {
             BlockState.get("minecraft:air");
         }
-        return adapt(block.getCurrentState());
+        return adapt(block.getBlockState());
     }
 
     /**
@@ -516,7 +496,7 @@ public final class PNXAdapter {
      */
     public static BaseItemStack adapt(Item item) {
         checkNotNull(item);
-        if (!new Identifier(item.getNamespaceId()).getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
+        if (!new Identifier(item.getId()).getNamespace().equals(Identifier.DEFAULT_NAMESPACE)) {
             BlockState.get("minecraft:air");
         }
         return new PNXItemStack(item);

@@ -81,6 +81,10 @@ tasks.named<AntlrTask>("generateGrammarSource").configure {
     )
 }
 
+tasks.javadoc {
+    enabled = false
+}
+
 tasks.named("sourcesJar") {
     mustRunAfter("generateGrammarSource")
 }

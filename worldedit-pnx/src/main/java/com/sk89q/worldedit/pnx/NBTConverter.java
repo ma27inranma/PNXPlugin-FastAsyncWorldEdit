@@ -140,7 +140,7 @@ public final class NBTConverter {
 
     private static cn.nukkit.nbt.tag.IntArrayTag toNative(IntArrayBinaryTag tag) {
         int[] value = tag.value();
-        return new cn.nukkit.nbt.tag.IntArrayTag("", Arrays.copyOf(value, value.length));
+        return new cn.nukkit.nbt.tag.IntArrayTag( Arrays.copyOf(value, value.length));
     }
 
     @SuppressWarnings("rawtypes")
@@ -156,46 +156,45 @@ public final class NBTConverter {
     }
 
     private static cn.nukkit.nbt.tag.LongTag toNative(LongBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.LongTag("", tag.value());
+        return new cn.nukkit.nbt.tag.LongTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.StringTag toNative(StringBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.StringTag("", tag.value());
+        return new cn.nukkit.nbt.tag.StringTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.IntTag toNative(IntBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.IntTag("", tag.value());
+        return new cn.nukkit.nbt.tag.IntTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.ByteTag toNative(ByteBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.ByteTag("", tag.value());
+        return new cn.nukkit.nbt.tag.ByteTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.ByteArrayTag toNative(ByteArrayBinaryTag tag) {
         byte[] value = tag.value();
-        return new cn.nukkit.nbt.tag.ByteArrayTag("", Arrays.copyOf(value, value.length));
+        return new cn.nukkit.nbt.tag.ByteArrayTag(Arrays.copyOf(value, value.length));
     }
 
     private static cn.nukkit.nbt.tag.CompoundTag toNative(CompoundBinaryTag tag) {
         cn.nukkit.nbt.tag.CompoundTag compound = new cn.nukkit.nbt.tag.CompoundTag();
         for (final Map.Entry<String, ? extends BinaryTag> entry : tag) {
             Tag value = toNative(entry.getValue());
-            value.setName(entry.getKey());
             compound.put(entry.getKey(), value);
         }
         return compound;
     }
 
     private static cn.nukkit.nbt.tag.FloatTag toNative(FloatBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.FloatTag("", tag.value());
+        return new cn.nukkit.nbt.tag.FloatTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.ShortTag toNative(ShortBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.ShortTag("", tag.value());
+        return new cn.nukkit.nbt.tag.ShortTag(tag.value());
     }
 
     private static cn.nukkit.nbt.tag.DoubleTag toNative(DoubleBinaryTag tag) {
-        return new cn.nukkit.nbt.tag.DoubleTag("", tag.value());
+        return new cn.nukkit.nbt.tag.DoubleTag(tag.value());
     }
 
     @SuppressWarnings("rawtypes")

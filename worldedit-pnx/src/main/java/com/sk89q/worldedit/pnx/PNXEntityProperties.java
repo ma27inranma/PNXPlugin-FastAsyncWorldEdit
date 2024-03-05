@@ -33,11 +33,11 @@ import cn.nukkit.entity.item.EntityBoat;
 import cn.nukkit.entity.item.EntityFallingBlock;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.item.EntityMinecartAbstract;
-import cn.nukkit.entity.item.EntityPrimedTNT;
-import cn.nukkit.entity.item.EntityXPOrb;
+import cn.nukkit.entity.item.EntityTnt;
+import cn.nukkit.entity.item.EntityXpOrb;
 import cn.nukkit.entity.mob.EntityIronGolem;
 import cn.nukkit.entity.passive.EntityAnimal;
-import cn.nukkit.entity.passive.EntityNPC;
+import cn.nukkit.entity.passive.EntityNpc;
 import cn.nukkit.entity.projectile.EntityProjectile;
 import com.sk89q.worldedit.entity.metadata.EntityProperties;
 
@@ -138,7 +138,7 @@ class PNXEntityProperties implements EntityProperties {
     @Override
     public boolean isTNT() {
         if (entity != null) {
-            return entity instanceof EntityPrimedTNT;
+            return entity instanceof EntityTnt;
         } else {
             return false;
         }
@@ -147,7 +147,7 @@ class PNXEntityProperties implements EntityProperties {
     @Override
     public boolean isExperienceOrb() {
         if (entity != null) {
-            return entity instanceof EntityXPOrb;
+            return entity instanceof EntityXpOrb;
         } else {
             return false;
         }
@@ -183,7 +183,7 @@ class PNXEntityProperties implements EntityProperties {
     @Override
     public boolean isNPC() {
         if (entity != null) {
-            return entity instanceof EntityNPC;
+            return entity instanceof EntityNpc;
         } else {
             return false;
         }

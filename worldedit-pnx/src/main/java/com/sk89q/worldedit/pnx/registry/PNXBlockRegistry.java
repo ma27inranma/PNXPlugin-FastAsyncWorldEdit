@@ -20,9 +20,12 @@
 package com.sk89q.worldedit.pnx.registry;
 
 import cn.nukkit.block.Block;
+import cn.nukkit.block.BlockAir;
+import cn.nukkit.block.BlockEntityHolder;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.block.BlockLiquid;
-import cn.nukkit.blockentity.BlockEntityContainer;
+import cn.nukkit.blockentity.BlockEntitySpawnableContainer;
+import cn.nukkit.registry.Registries;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.sk89q.jnbt.CompoundTag;
@@ -39,6 +42,7 @@ import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.registry.BlockMaterial;
 import com.sk89q.worldedit.world.registry.BundledBlockRegistry;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -50,7 +54,7 @@ import java.util.stream.Collectors;
 
 public class PNXBlockRegistry extends BundledBlockRegistry {
 
-    private PNXBlockMaterial[] materialMap;
+    private Object2ObjectOpenHashMap<String, PNXBlockMaterial> materialMap;
 
     @Nullable
     @Override
@@ -58,17 +62,17 @@ public class PNXBlockRegistry extends BundledBlockRegistry {
         if (blockType == null) {
             return null;
         }
-        Block mat = Block.get(0);
+        cn.nukkit.block.BlockState mat = BlockAir.STATE;
         if (!isRemain(blockType.getId())) {
-            mat = PNXAdapter.adapt(blockType).getBlock();
+            mat = PNXAdapter.adapt(blockType);
         }
         if (materialMap == null) {
-            materialMap = new PNXBlockMaterial[Block.MAX_BLOCK_ID];
+            materialMap = new Object2ObjectOpenHashMap<>(Registries.BLOCK.getKeySet().size());
         }
-        PNXBlockMaterial result = materialMap[mat.getId()];
+        PNXBlockMaterial result = materialMap.get(mat.getIdentifier());
         if (result == null) {
-            result = new PNXBlockMaterial(mat);
-            materialMap[mat.getId()] = result;
+            result = new PNXBlockMaterial(mat.toBlock());
+            materialMap.put(mat.getIdentifier(), result);
         }
         return result;
     }
@@ -80,13 +84,13 @@ public class PNXBlockRegistry extends BundledBlockRegistry {
         if (state == null) {
             return null;
         }
-        cn.nukkit.blockstate.BlockState nkBlockState;
+        cn.nukkit.block.BlockState nkBlockState;
         if ((nkBlockState = PNXAdapter.adapt(state)) != null) {
-            PNXBlockMaterial result = materialMap[nkBlockState.getBlockId()];
-            Block mat = nkBlockState.getBlock();
+            PNXBlockMaterial result = materialMap.get(nkBlockState.getIdentifier());
             if (result == null) {
+                Block mat = nkBlockState.toBlock();
                 result = new PNXBlockMaterial(mat);
-                materialMap[mat.getId()] = result;
+                materialMap.put(nkBlockState.getIdentifier(), result);
             }
             return result;
         } else {
@@ -198,7 +202,7 @@ public class PNXBlockRegistry extends BundledBlockRegistry {
 
         @Override
         public boolean hasContainer() {
-            return this.material instanceof BlockEntityContainer;
+            return this.material instanceof BlockEntityHolder<?> && this.material.getLevelBlockEntity() instanceof BlockEntitySpawnableContainer;
         }
 
         @Override

@@ -22,7 +22,6 @@ package com.sk89q.worldedit.pnx;
 
 import cn.nukkit.Server;
 import cn.nukkit.entity.Entity;
-import cn.nukkit.entity.EntityIds;
 import cn.nukkit.entity.EntityLiving;
 import cn.nukkit.level.Position;
 import cn.nukkit.utils.Identifier;
@@ -42,6 +41,7 @@ import com.sk89q.worldedit.extension.platform.MultiUserPlatform;
 import com.sk89q.worldedit.extension.platform.Preference;
 import com.sk89q.worldedit.extension.platform.Watchdog;
 import com.sk89q.worldedit.internal.util.LogManagerCompat;
+import com.sk89q.worldedit.pnx.data.FileRegistries;
 import com.sk89q.worldedit.pnx.registry.PNXRegistries;
 import com.sk89q.worldedit.util.SideEffect;
 import com.sk89q.worldedit.world.DataFixer;
@@ -96,7 +96,7 @@ public class PNXServerInterface extends AbstractPlatform implements MultiUserPla
     @SuppressWarnings("deprecation")
     @Override
     public int getDataVersion() {
-        return 3105;
+        return FileRegistries.DATA_VERSION;
     }
 
     @Override
@@ -109,7 +109,7 @@ public class PNXServerInterface extends AbstractPlatform implements MultiUserPla
         if (!type.startsWith("minecraft:")) {
             return false;
         }
-        if (EntityIds.IDENTIFIER_2_IDS.containsKey(type)) {
+        if (cn.nukkit.registry.Registries.ENTITY.getEntityDefinition(type) != null) {
             return Entity.createEntity(new Identifier(type), new Position(0, 0, 0)) instanceof EntityLiving;
         } else {
             return false;

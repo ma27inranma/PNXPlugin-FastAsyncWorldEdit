@@ -12,7 +12,9 @@ import com.fastasyncworldedit.core.Fawe;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.sk89q.fastasyncworldedit.pnx.FawePNX;
-import com.sk89q.pnx.util.mappings.JEBEMappings119;
+import com.sk89q.pnx.util.mappings.MappingRegistries;
+import com.sk89q.pnx.util.mappings.populator.BlockRegistryPopulator;
+import com.sk89q.pnx.util.mappings.type.BlockMappings;
 import com.sk89q.util.yaml.YAMLProcessor;
 import com.sk89q.wepif.PermissionsResolverManager;
 import com.sk89q.worldedit.EditSession;
@@ -122,8 +124,8 @@ public class PNXWorldEditPlugin extends PluginBase {
 
         this.fileRegistries = new FileRegistries(this);
         this.fileRegistries.loadDataFiles();
-        this.setupRegistries();
         WorldEdit.getInstance().loadMappings();
+        this.setupRegistries();
 
         PermissionsResolverManager.initialize(this); // Setup permission resolver
 
@@ -207,9 +209,11 @@ public class PNXWorldEditPlugin extends PluginBase {
     }
 
     public void setupRegistries() {
-        JEBEMappings119.load();
         // Blocks
+        final BlockMappings blockMappings = MappingRegistries.BLOCKS;
         BlockTypesCache.getAllProperties();
+        BlockRegistryPopulator.initMapping2(blockMappings);
+
         // Entities
         for (String name : fileRegistries.getDataFile().entities) {
             if (EntityType.REGISTRY.get(name) == null) {

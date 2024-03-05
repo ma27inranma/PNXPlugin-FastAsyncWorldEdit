@@ -5,21 +5,15 @@ plugins {
 }
 
 project.description = "PNX"
-
 applyPlatformAndCoreConfiguration()
 applyShadowConfiguration()
 
 repositories {
-    mavenCentral()
-    maven {
-        url = uri("https://www.jitpack.io")
-    }
-    maven {
-        url = uri("https://repo.opencollab.dev/maven-snapshots/")
-    }
-    maven {
-        url = uri("https://repo.opencollab.dev/maven-releases/")
-    }
+    mavenLocal()
+    maven("https://repo.maven.apache.org/maven2/")
+    maven("https://jitpack.io")
+    maven("https://repo.opencollab.dev/maven-releases/")
+    maven("https://repo.opencollab.dev/maven-snapshots/")
     flatDir { dir(File("src/main/resources")) }
 }
 
@@ -30,13 +24,16 @@ val localImplementation = configurations.create("localImplementation") {
 }
 
 dependencies {
-    compileOnly(group = "cn.powernukkitx", name = "powernukkitx", version = "1.20.10-r1") {
+    compileOnly("com.github.PowerNukkitX:PowerNukkitX:36a82977be") {
         exclude("junit", "junit")
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
     // Modules
     api(projects.worldeditCore)
     api(projects.worldeditLibs.pnx)
+    // https://mvnrepository.com/artifact/org.projectlombok/lombok
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
 
     // Minecraft expectations
     implementation(libs.fastutil)
@@ -74,6 +71,10 @@ tasks.named<Jar>("jar") {
         attributes("Class-Path" to CLASSPATH,
                 "WorldEdit-Version" to project.version)
     }
+}
+
+tasks.javadoc {
+    enabled = false
 }
 
 addJarManifest(WorldEditKind.Plugin, includeClasspath = true)

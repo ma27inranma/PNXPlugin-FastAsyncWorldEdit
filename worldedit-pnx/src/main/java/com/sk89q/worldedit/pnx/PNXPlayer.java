@@ -22,9 +22,9 @@ package com.sk89q.worldedit.pnx;
 
 import cn.nukkit.Player;
 import cn.nukkit.Server;
-import cn.nukkit.block.fake.FakeStructBlock;
 import cn.nukkit.event.player.PlayerDropItemEvent;
-import cn.nukkit.inventory.PlayerInventory;
+import cn.nukkit.inventory.HumanInventory;
+import cn.nukkit.inventory.fake.FakeStructBlock;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Location;
 import com.fastasyncworldedit.core.configuration.Settings;
@@ -145,7 +145,7 @@ public class PNXPlayer extends AbstractPlayerActor {
     //FAWE start
     @Override
     public void giveItem(BaseItemStack itemStack) {
-        final PlayerInventory inv = player.getInventory();
+        final HumanInventory inv = player.getInventory();
         Item newItem = PNXAdapter.adapt(itemStack);
         TaskManager.taskManager().sync(() -> {
             if (itemStack.getType().getId().equalsIgnoreCase(WorldEdit.getInstance().getConfiguration().wandItem)) {

@@ -25,9 +25,7 @@ import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
-import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.particle.PunchBlockParticle;
-import cn.nukkit.math.BlockFace;
 import com.fastasyncworldedit.core.queue.IChunkGet;
 import com.fastasyncworldedit.core.queue.implementation.packet.ChunkPacket;
 import com.google.common.collect.ImmutableSet;
@@ -330,7 +328,7 @@ public class PNXWorld extends AbstractWorld {
 
     @Override
     public int getMinY() {
-        return getWorld().getMinHeight() + 1;
+        return getWorld().getMinHeight();
     }
 
     @SuppressWarnings("deprecation")
@@ -347,8 +345,11 @@ public class PNXWorld extends AbstractWorld {
     @Override
     public boolean playBlockBreakEffect(Vector3 position, BlockType type) {
         Level world = getWorld();
-        world.addParticle(new PunchBlockParticle(new cn.nukkit.math.Vector3(position.getX(), position.getY(), position.getZ()),
-                PNXAdapter.adapt(type).getBlock(), BlockFace.UP
+        world.addParticle(new PunchBlockParticle(
+                new cn.nukkit.math.Vector3(position.getX(), position.getY(), position.getZ()),
+                PNXAdapter.adapt(type).toBlock(Position.fromObject(new cn.nukkit.math.Vector3(position.getX(), position.getY(),
+                        position.getZ()
+                ), world))
         ));
         return true;
     }
@@ -418,14 +419,14 @@ public class PNXWorld extends AbstractWorld {
         return Arrays
                 .stream(getWorld()
                         .getBlock(position.getBlockX(), position.getBlockY(), position.getBlockZ())
-                        .getDrops(Item.get(0)))
+                        .getDrops(Item.AIR))
                 .map(PNXAdapter::adapt).collect(Collectors.toList());
     }
     //FAWE end
 
     @Override
     public boolean canPlaceAt(BlockVector3 position, com.sk89q.worldedit.world.block.BlockState blockState) {
-        if (PNXAdapter.adapt(blockState).getBlock().canBePlaced() &&
+        if (PNXAdapter.adapt(blockState).toBlock().canBePlaced() &&
                 getWorld().getBlock(position.getBlockX(), position.getBlockY(), position.getBlockZ()).canBeReplaced()) {
             return true;
         }
@@ -476,23 +477,20 @@ public class PNXWorld extends AbstractWorld {
     @SuppressWarnings("deprecation")
     @Override
     public BiomeType getBiome(BlockVector3 position) {
-        return PNXAdapter.adapt(Biome.getBiome(getWorld().getBiomeId(position.getBlockX(), position.getBlockY(),
-                position.getBlockZ()
-        )));
+        return PNXAdapter.adapt(getWorld().getBiomeId(position.getBlockX(), position.getBlockY(), position.getBlockZ()));
     }
 
     @SuppressWarnings("deprecation")
     @Override
     public boolean setBiome(BlockVector3 position, BiomeType biome) {
         getWorld().setBiomeId(position.getBlockX(), position.getBlockY(), position.getBlockZ(),
-                (byte) PNXAdapter.adapt(biome).getId()
+                (byte) PNXAdapter.adapt(biome)
         );
         return true;
     }
 
     @Override
     public void flush() {
-
     }
 
     //FAWE start

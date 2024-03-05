@@ -2,7 +2,7 @@ name: FastAsyncWorldEdit
 main: com.sk89q.worldedit.pnx.PNXWorldEditPlugin
 version: "${internalVersion}"
 load: POSTWORLD
-api: [ "1.0.14" ]
+api: 2.0.0
 depend: [ DbLib ]
 softdepend: [ Vault ]
 provides: [ WorldEdit ]

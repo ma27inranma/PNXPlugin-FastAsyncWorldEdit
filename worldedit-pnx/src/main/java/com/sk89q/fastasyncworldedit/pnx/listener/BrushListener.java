@@ -7,7 +7,7 @@ import cn.nukkit.event.EventPriority;
 import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerInteractEvent;
 import cn.nukkit.event.player.PlayerItemHeldEvent;
-import cn.nukkit.inventory.PlayerInventory;
+import cn.nukkit.inventory.HumanInventory;
 import cn.nukkit.item.Item;
 import cn.nukkit.plugin.Plugin;
 import com.fastasyncworldedit.core.command.tool.ResettableTool;
@@ -42,7 +42,7 @@ public class BrushListener implements Listener {
                 ri = -1;
             }
             if (scrollable.increment(player, ri)) {
-                final PlayerInventory inv = pnxPlayer.getInventory();
+                final HumanInventory inv = pnxPlayer.getInventory();
                 final Item item = inv.getItem(slot);
                 final Item newItem = inv.getItem(oldSlot);
 
