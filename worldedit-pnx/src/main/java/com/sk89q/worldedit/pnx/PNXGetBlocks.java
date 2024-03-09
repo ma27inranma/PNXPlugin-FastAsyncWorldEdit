@@ -61,7 +61,7 @@ public class PNXGetBlocks extends CharGetBlocks {
     private IChunk pnxChunk;
 
     public PNXGetBlocks(Level serverLevel, int chunkX, int chunkZ) {
-        super(serverLevel.getDimensionData().getMinSectionY(),  serverLevel.getDimensionData().getMaxSectionY());
+        super(serverLevel.getDimensionData().getMinSectionY(), serverLevel.getDimensionData().getMaxSectionY());
         this.serverLevel = serverLevel;
         this.chunkX = chunkX;
         this.chunkZ = chunkZ;
@@ -69,9 +69,8 @@ public class PNXGetBlocks extends CharGetBlocks {
         this.maxHeight = serverLevel.getMaxHeight();
 
         IChunk chunk = serverLevel.getChunk(chunkX, chunkZ);
-        if (chunk == null || !chunk.isGenerated()) {
-            serverLevel.generateChunk(chunkX, chunkZ);
-            chunk = serverLevel.getChunk(chunkX, chunkZ);
+        if (chunk == null) {
+            chunk = serverLevel.getChunk(chunkX, chunkZ, true);
         }
 
         this.pnxChunk = chunk;
@@ -172,7 +171,6 @@ public class PNXGetBlocks extends CharGetBlocks {
         layer -= getMinSectionPosition();
         if (this.pnxChunkSections[layer] != null && !(this.pnxChunkSections[layer].isEmpty())) {
             lightUpdate = true;
-            synchronized (this.pnxChunkSections[layer]) {
                 for (int x = 0; x < 16; x++) {
                     for (int y = 0; y < 16; y++) {
                         for (int z = 0; z < 16; z++) {
@@ -180,9 +178,7 @@ public class PNXGetBlocks extends CharGetBlocks {
                         }
                     }
                 }
-            }
             if (sky) {
-                synchronized (this.pnxChunkSections[layer]) {
                     for (int x = 0; x < 16; x++) {
                         for (int y = 0; y < 16; y++) {
                             for (int z = 0; z < 16; z++) {
@@ -190,7 +186,6 @@ public class PNXGetBlocks extends CharGetBlocks {
                             }
                         }
                     }
-                }
             }
         }
     }
@@ -673,24 +668,19 @@ public class PNXGetBlocks extends CharGetBlocks {
             Arrays.fill(data, (char) BlockTypesCache.ReservedIDs.AIR);
         }
 
-        try {
-            sectionLock.readLock().lock();
-            for (int y = 0, index = 0; y < 16; y++) {
-                for (int z = 0; z < 16; z++) {
-                    for (int x = 0; x < 16; x++, index++) {
-                        var state = section.getBlockState(x, y, z);
-                        if (state == BlockAir.STATE) {
-                            data[index] = 0;
-                        } else {
-                            data[index] = PNXAdapter.adapt(section.getBlockState(x, y, z)).getOrdinalChar();
-                        }
+        for (int y = 0, index = 0; y < 16; y++) {
+            for (int z = 0; z < 16; z++) {
+                for (int x = 0; x < 16; x++, index++) {
+                    var state = section.getBlockState(x, y, z);
+                    if (state == BlockAir.STATE) {
+                        data[index] = 0;
+                    } else {
+                        data[index] = PNXAdapter.adapt(section.getBlockState(x, y, z)).getOrdinalChar();
                     }
                 }
             }
-            return data;
-        } finally {
-            sectionLock.readLock().unlock();
         }
+        return data;
     }
 
     private void updateGet(
@@ -766,24 +756,20 @@ public class PNXGetBlocks extends CharGetBlocks {
                 continue;
             }
             if (lightLayer == LightLayer.BLOCK) {
-                synchronized (this.pnxChunkSections[Y]) {
-                    for (int x = 0; x < 16; x++) {
-                        for (int y = 0; y < 16; y++) {
-                            for (int z = 0; z < 16; z++) {
-                                int i = y << 8 | z << 4 | x;
-                                this.pnxChunkSections[Y].setBlockLight(x, y, z, (byte) (light[Y][i] & 15));
-                            }
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            int i = y << 8 | z << 4 | x;
+                            this.pnxChunkSections[Y].setBlockLight(x, y, z, (byte) (light[Y][i] & 15));
                         }
                     }
                 }
             } else if (lightLayer == LightLayer.SKY) {
-                synchronized (this.pnxChunkSections[Y]) {
-                    for (int x = 0; x < 16; x++) {
-                        for (int y = 0; y < 16; y++) {
-                            for (int z = 0; z < 16; z++) {
-                                int i = y << 8 | z << 4 | x;
-                                this.pnxChunkSections[Y].setBlockSkyLight(x, y, z, (byte) (light[Y][i] & 15));
-                            }
+                for (int x = 0; x < 16; x++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int z = 0; z < 16; z++) {
+                            int i = y << 8 | z << 4 | x;
+                            this.pnxChunkSections[Y].setBlockSkyLight(x, y, z, (byte) (light[Y][i] & 15));
                         }
                     }
                 }
