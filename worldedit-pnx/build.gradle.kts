@@ -24,7 +24,7 @@ val localImplementation = configurations.create("localImplementation") {
 }
 
 dependencies {
-    compileOnly("com.github.PowerNukkitX:PowerNukkitX:36a82977be") {
+    compileOnly("com.github.PowerNukkitX:PowerNukkitX:master-SNAPSHOT") {
         exclude("junit", "junit")
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
