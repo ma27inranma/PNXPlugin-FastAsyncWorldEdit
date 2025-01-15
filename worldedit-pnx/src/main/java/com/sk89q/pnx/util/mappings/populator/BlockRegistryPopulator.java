@@ -54,12 +54,12 @@ public final class BlockRegistryPopulator {
     }
 
     final static Remapper mapper = Remapper.of(
-            BlockStateUpdater_1_20_10.INSTANCE,
-            BlockStateUpdater_1_20_30.INSTANCE,
-            BlockStateUpdater_1_20_40.INSTANCE,
-            BlockStateUpdater_1_20_50.INSTANCE,
-            BlockStateUpdater_1_20_60.INSTANCE,
-            BlockStateUpdater_1_20_70.INSTANCE
+        BlockStateUpdater_1_20_10.INSTANCE,
+        BlockStateUpdater_1_20_30.INSTANCE,
+        BlockStateUpdater_1_20_40.INSTANCE,
+        BlockStateUpdater_1_20_50.INSTANCE,
+        BlockStateUpdater_1_20_60.INSTANCE,
+        BlockStateUpdater_1_20_70.INSTANCE
     );
 
     public static void initMapping2(BlockMappings blockMappings) {
